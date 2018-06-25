@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -25,6 +25,7 @@ package org.pentaho.di.core.logging;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.database.DatabaseMeta;
@@ -132,6 +133,8 @@ public abstract class BaseLogTable {
   }
 
   public void loadFromRepository( RepositoryAttributeInterface attributeInterface ) throws KettleException {
+    connectionName = schemaName = tableName = null;
+
     String connectionNameFromRepository =
       attributeInterface.getAttributeString( getLogTableCode() + PROP_LOG_TABLE_CONNECTION_NAME );
     if ( connectionNameFromRepository != null ) {
@@ -482,9 +485,17 @@ public abstract class BaseLogTable {
     this.connectionName = connectionName;
   }
 
+  @VisibleForTesting
   protected String getLogBuffer( VariableSpace space, String logChannelId, LogStatus status, String limit ) {
 
-    StringBuffer buffer = KettleLogStore.getAppender().getBuffer( logChannelId, true );
+    LoggingBuffer loggingBuffer = KettleLogStore.getAppender();
+    // if job is starting, then remove all previous events from buffer with that job logChannelId.
+    // Prevents recursive job calls logging issue.
+    if ( status.getStatus().equalsIgnoreCase( String.valueOf( LogStatus.START ) ) ) {
+      loggingBuffer.removeChannelFromBuffer( logChannelId );
+    }
+
+    StringBuffer buffer = loggingBuffer.getBuffer( logChannelId, true );
 
     if ( Utils.isEmpty( limit ) ) {
       String defaultLimit = space.getVariable( Const.KETTLE_LOG_SIZE_LIMIT, null );

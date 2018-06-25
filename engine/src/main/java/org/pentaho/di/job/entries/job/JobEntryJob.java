@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -57,6 +57,7 @@ import org.pentaho.di.job.JobExecutionConfiguration;
 import org.pentaho.di.job.JobMeta;
 import org.pentaho.di.job.entry.JobEntryBase;
 import org.pentaho.di.job.entry.JobEntryInterface;
+import org.pentaho.di.job.entry.JobEntryRunConfigurableInterface;
 import org.pentaho.di.job.entry.validator.AndValidator;
 import org.pentaho.di.job.entry.validator.JobEntryValidatorUtils;
 import org.pentaho.di.repository.HasRepositoryDirectories;
@@ -93,7 +94,7 @@ import java.util.UUID;
  * @since 01-10-2003, Rewritten on 18-06-2004
  *
  */
-public class JobEntryJob extends JobEntryBase implements Cloneable, JobEntryInterface, HasRepositoryDirectories {
+public class JobEntryJob extends JobEntryBase implements Cloneable, JobEntryInterface, HasRepositoryDirectories, JobEntryRunConfigurableInterface {
   private static Class<?> PKG = JobEntryJob.class; // for i18n purposes, needed by Translator2!!
 
   private String filename;
@@ -1357,8 +1358,19 @@ public class JobEntryJob extends JobEntryBase implements Cloneable, JobEntryInte
           }
           break;
         case REPOSITORY_BY_NAME:
-          String realDirectory = tmpSpace.environmentSubstitute( getDirectory() );
-          String realJobName = tmpSpace.environmentSubstitute( getJobName() );
+          String realJobName = getJobName();
+          String realDirectory = "";
+          if ( realJobName.startsWith( "${" ) && realJobName.endsWith( "}" ) ) {
+            String transPath = tmpSpace.environmentSubstitute( realJobName );
+            int index = transPath.lastIndexOf( "/" );
+            if ( index != -1 ) {
+              realJobName = transPath.substring( index + 1 );
+              realDirectory = index == 0 ? "/" : transPath.substring( 0, index );
+            }
+          } else {
+            realJobName = tmpSpace.environmentSubstitute( getJobName() );
+            realDirectory = tmpSpace.environmentSubstitute( getDirectory() );
+          }
 
           if ( rep != null ) {
             realDirectory = r.normalizeSlashes( realDirectory );
@@ -1579,6 +1591,10 @@ public class JobEntryJob extends JobEntryBase implements Cloneable, JobEntryInte
    */
   public void setFollowingAbortRemotely( boolean followingAbortRemotely ) {
     this.followingAbortRemotely = followingAbortRemotely;
+  }
+
+  public void setLoggingRemoteWork( boolean loggingRemoteWork ) {
+    // do nothing. for compatibility with JobEntryRunConfigurableInterface
   }
 
   /**

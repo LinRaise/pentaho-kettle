@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -24,15 +24,14 @@ package org.pentaho.di.trans.steps.file;
 
 import java.util.List;
 
+import com.google.common.base.Preconditions;
 import org.pentaho.di.core.fileinput.FileInputList;
 import org.pentaho.di.core.injection.InjectionDeep;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.resource.ResourceReference;
 import org.pentaho.di.trans.TransMeta;
-import org.pentaho.di.trans.step.BaseStepMeta;
 import org.pentaho.di.trans.step.StepMeta;
-import org.pentaho.di.trans.step.StepMetaInterface;
 
 /**
  * Base meta for file-based input steps.
@@ -40,7 +39,7 @@ import org.pentaho.di.trans.step.StepMetaInterface;
  * @author Alexander Buloichik
  */
 public abstract class BaseFileInputMeta<A extends BaseFileInputAdditionalField, I extends BaseFileInputFiles, F extends BaseFileField>
-    extends BaseStepMeta implements StepMetaInterface {
+    extends BaseFileMeta {
   private static Class<?> PKG = BaseFileInputMeta.class; // for i18n purposes, needed by Translator2!!
 
   public static final String[] RequiredFilesCode = new String[] { "N", "Y" };
@@ -60,6 +59,13 @@ public abstract class BaseFileInputMeta<A extends BaseFileInputAdditionalField, 
   @InjectionDeep
   public F[] inputFields;
 
+  /**
+   * @return the input fields.
+   */
+  public F[] getInputFields() {
+    return inputFields;
+  }
+
   @InjectionDeep
   public BaseFileErrorHandling errorHandling = new BaseFileErrorHandling();
   @InjectionDeep
@@ -76,8 +82,7 @@ public abstract class BaseFileInputMeta<A extends BaseFileInputAdditionalField, 
   }
 
   /**
-   * @param fileRequired
-   *          The fileRequired to set.
+   * @param fileRequiredin The fileRequired to set.
    */
   public void inputFiles_fileRequired( String[] fileRequiredin ) {
     for ( int i = 0; i < fileRequiredin.length; i++ ) {
@@ -118,4 +123,32 @@ public abstract class BaseFileInputMeta<A extends BaseFileInputAdditionalField, 
   }
 
   public abstract String getEncoding();
+
+  public boolean isAcceptingFilenames() {
+    Preconditions.checkNotNull( inputFiles );
+    return inputFiles.acceptingFilenames;
+  }
+
+  public String getAcceptingStepName() {
+    return inputFiles == null ? null : inputFiles.acceptingStepName;
+  }
+
+  public String getAcceptingField() {
+    return inputFiles == null ? null : inputFiles.acceptingField;
+  }
+
+  @Override
+  public String[] getFilePaths( final boolean showSamples ) {
+    final StepMeta parentStepMeta = getParentStepMeta();
+    if ( parentStepMeta != null ) {
+      final TransMeta parentTransMeta = parentStepMeta.getParentTransMeta();
+      if ( parentTransMeta != null ) {
+        final FileInputList inputList = getFileInputList( parentTransMeta );
+        if ( inputList != null ) {
+          return inputList.getFileStrings();
+        }
+      }
+    }
+    return new String[]{};
+  }
 }

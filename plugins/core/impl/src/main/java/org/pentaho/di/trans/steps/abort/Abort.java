@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -83,8 +83,15 @@ public class Abort extends BaseStep implements StepInterface {
         //
         // Here we abort!!
         //
+        String abortOptionMessageProperty = "AbortDialog.Options.Abort.Label";
+        if ( meta.isAbortWithError() ) {
+          abortOptionMessageProperty = "AbortDialog.Options.AbortWithError.Label";
+        } else if ( meta.isSafeStop() ) {
+          abortOptionMessageProperty = "AbortDialog.Options.SafeStop.Label";
+        }
         logError( BaseMessages.getString(
-          PKG, "Abort.Log.Wrote.AbortRow", Long.toString( nrInputRows ), getInputRowMeta().getString( r ) ) );
+          PKG, "Abort.Log.Wrote.AbortRow", Long.toString( nrInputRows ),
+          BaseMessages.getString( PKG, abortOptionMessageProperty ), getInputRowMeta().getString( r ) ) );
 
         String message = environmentSubstitute( meta.getMessage() );
         if ( message == null || message.length() == 0 ) {
@@ -92,10 +99,16 @@ public class Abort extends BaseStep implements StepInterface {
         } else {
           logError( message );
         }
-        if ( meta.isAbortWithError() ) {
-          setErrors( 1 );
+        if ( meta.isSafeStop() ) {
+
+          getTrans().safeStop();
+        } else {
+          if ( meta.isAbortWithError() ) {
+            setErrors( 1 );
+          }
+
+          stopAll();
         }
-        stopAll();
       } else {
         // seen a row but not yet reached the threshold
         if ( meta.isAlwaysLogRows() ) {

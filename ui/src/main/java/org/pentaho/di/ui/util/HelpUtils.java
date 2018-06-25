@@ -1,7 +1,7 @@
 /*
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  * **************************************************************************
  *
@@ -121,6 +121,12 @@ public class HelpUtils {
 
   public static ShowHelpDialog openHelpDialog( Shell shell, String dialogTitle, String url, String header ) {
     ShowHelpDialog helpDlg = new ShowHelpDialog( shell, dialogTitle, url, header );
+    helpDlg.open();
+    return helpDlg;
+  }
+
+  public static ShowHelpDialog openHelpDialog( Shell shell, String dialogTitle, String url ) {
+    ShowHelpDialog helpDlg = new ShowHelpDialog( shell, dialogTitle, url );
     helpDlg.open();
     return helpDlg;
   }

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.vfs2.FileObject;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CCombo;
 import org.eclipse.swt.custom.CTabFolder;
@@ -47,9 +49,9 @@ import org.eclipse.swt.layout.FormData;
 import org.eclipse.swt.layout.FormLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Composite;
+import org.eclipse.swt.widgets.Control;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Event;
-import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.Label;
 import org.eclipse.swt.widgets.Listener;
 import org.eclipse.swt.widgets.MessageBox;
@@ -65,6 +67,7 @@ import org.pentaho.di.core.row.RowMetaInterface;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
 import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.core.vfs.KettleVFS;
 import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.BaseStepMeta;
@@ -78,8 +81,10 @@ import org.pentaho.di.ui.core.widget.ColumnInfo;
 import org.pentaho.di.ui.core.widget.ComboVar;
 import org.pentaho.di.ui.core.widget.TableView;
 import org.pentaho.di.ui.core.widget.TextVar;
+import org.pentaho.di.ui.spoon.Spoon;
 import org.pentaho.di.ui.trans.step.BaseStepDialog;
 import org.pentaho.di.ui.trans.step.TableItemInsertListener;
+import org.pentaho.vfs.ui.VfsFileChooserDialog;
 
 public class TextFileOutputDialog extends BaseStepDialog implements StepDialogInterface {
   private static Class<?> PKG = TextFileOutputMeta.class; // for i18n purposes, needed by Translator2!!
@@ -96,12 +101,8 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
   private TextVar wFilename;
   private FormData fdlFilename, fdbFilename, fdFilename;
 
-  private Label wlFileIsCommand;
-  private Button wFileIsCommand;
-  private FormData fdlFileIsCommand, fdFileIsCommand;
-
   private Label wlServletOutput;
-  private Button wServletOutput;
+  protected Button wServletOutput;
   private FormData fdlServletOutput, fdServletOutput;
 
   private Label wlExtension;
@@ -151,7 +152,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
   private FormData fdlEnclosure, fdEnclosure;
 
   private Label wlEndedLine;
-  private Text wEndedLine;
+  private TextVar wEndedLine;
   private FormData fdlEndedLine, fdEndedLine;
 
   private Label wlEnclForced;
@@ -191,13 +192,13 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
   private FormData fdlFastDump, fdFastDump;
 
   private Label wlSplitEvery;
-  private Text wSplitEvery;
+  private TextVar wSplitEvery;
   private FormData fdlSplitEvery, fdSplitEvery;
 
   private TableView wFields;
   private FormData fdFields;
 
-  private TextFileOutputMeta input;
+  protected TextFileOutputMeta input;
 
   private Button wMinWidth;
   private Listener lsMinWidth;
@@ -219,8 +220,8 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
   private Button wSpecifyFormat;
   private FormData fdlSpecifyFormat, fdSpecifyFormat;
 
-  private Label wlCreateParentFolder;
-  private Button wCreateParentFolder;
+  protected Label wlCreateParentFolder;
+  protected Button wCreateParentFolder;
   private FormData fdlCreateParentFolder, fdCreateParentFolder;
 
   private ColumnInfo[] colinf;
@@ -255,7 +256,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     formLayout.marginHeight = Const.FORM_MARGIN;
 
     shell.setLayout( formLayout );
-    shell.setText( BaseMessages.getString( PKG, "TextFileOutputDialog.DialogTitle" ) );
+    shell.setText( getDialogTitle() );
 
     int middle = props.getMiddlePct();
     int margin = Const.MARGIN;
@@ -324,28 +325,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     fdFilename.right = new FormAttachment( wbFilename, -margin );
     wFilename.setLayoutData( fdFilename );
 
-    // Run this as a command instead?
-    wlFileIsCommand = new Label( wFileComp, SWT.RIGHT );
-    wlFileIsCommand.setText( BaseMessages.getString( PKG, "TextFileOutputDialog.FileIsCommand.Label" ) );
-    props.setLook( wlFileIsCommand );
-    fdlFileIsCommand = new FormData();
-    fdlFileIsCommand.left = new FormAttachment( 0, 0 );
-    fdlFileIsCommand.top = new FormAttachment( wFilename, margin );
-    fdlFileIsCommand.right = new FormAttachment( middle, -margin );
-    wlFileIsCommand.setLayoutData( fdlFileIsCommand );
-    wFileIsCommand = new Button( wFileComp, SWT.CHECK );
-    props.setLook( wFileIsCommand );
-    fdFileIsCommand = new FormData();
-    fdFileIsCommand.left = new FormAttachment( middle, 0 );
-    fdFileIsCommand.top = new FormAttachment( wFilename, margin );
-    fdFileIsCommand.right = new FormAttachment( 100, 0 );
-    wFileIsCommand.setLayoutData( fdFileIsCommand );
-    wFileIsCommand.addSelectionListener( new SelectionAdapter() {
-      public void widgetSelected( SelectionEvent e ) {
-        input.setChanged();
-        enableParentFolder();
-      }
-    } );
+    Control topControl = addAdditionalComponentIfNeed( middle, margin, wFileComp, wFilename );
 
     // Output to servlet (browser, ws)
     //
@@ -354,7 +334,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     props.setLook( wlServletOutput );
     fdlServletOutput = new FormData();
     fdlServletOutput.left = new FormAttachment( 0, 0 );
-    fdlServletOutput.top = new FormAttachment( wFileIsCommand, margin );
+    fdlServletOutput.top = new FormAttachment( topControl, margin );
     fdlServletOutput.right = new FormAttachment( middle, -margin );
     wlServletOutput.setLayoutData( fdlServletOutput );
     wServletOutput = new Button( wFileComp, SWT.CHECK );
@@ -362,7 +342,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     props.setLook( wServletOutput );
     fdServletOutput = new FormData();
     fdServletOutput.left = new FormAttachment( middle, 0 );
-    fdServletOutput.top = new FormAttachment( wFileIsCommand, margin );
+    fdServletOutput.top = new FormAttachment( topControl, margin );
     fdServletOutput.right = new FormAttachment( 100, 0 );
     wServletOutput.setLayoutData( fdServletOutput );
     wServletOutput.addSelectionListener( new SelectionAdapter() {
@@ -996,7 +976,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     fdlSplitEvery.top = new FormAttachment( wFastDump, margin );
     fdlSplitEvery.right = new FormAttachment( middle, -margin );
     wlSplitEvery.setLayoutData( fdlSplitEvery );
-    wSplitEvery = new Text( wContentComp, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    wSplitEvery = new TextVar( transMeta, wContentComp, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
     props.setLook( wSplitEvery );
     wSplitEvery.addModifyListener( lsMod );
     fdSplitEvery = new FormData();
@@ -1014,7 +994,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     fdlEndedLine.top = new FormAttachment( wSplitEvery, margin );
     fdlEndedLine.right = new FormAttachment( middle, -margin );
     wlEndedLine.setLayoutData( fdlEndedLine );
-    wEndedLine = new Text( wContentComp, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
+    wEndedLine = new TextVar( transMeta, wContentComp, SWT.SINGLE | SWT.LEFT | SWT.BORDER );
     props.setLook( wEndedLine );
     wEndedLine.addModifyListener( lsMod );
     fdEndedLine = new FormData();
@@ -1225,29 +1205,34 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
 
     wbFilename.addSelectionListener( new SelectionAdapter() {
       public void widgetSelected( SelectionEvent e ) {
-        FileDialog dialog = new FileDialog( shell, SWT.SAVE );
-        dialog.setFilterExtensions( new String[] { "*.txt", "*.csv", "*" } );
+        VfsFileChooserDialog fileChooserDialog = Spoon.getInstance().getVfsFileChooserDialog( null, null );
         if ( wFilename.getText() != null ) {
-          dialog.setFileName( transMeta.environmentSubstitute( wFilename.getText() ) );
-        }
-        dialog.setFilterNames( new String[] {
-          BaseMessages.getString( PKG, "System.FileType.TextFiles" ),
-          BaseMessages.getString( PKG, "System.FileType.CSVFiles" ),
-          BaseMessages.getString( PKG, "System.FileType.AllFiles" ) } );
-        if ( dialog.open() != null ) {
-          String extension = wExtension.getText();
-          if ( extension != null
-            && dialog.getFileName() != null && dialog.getFileName().endsWith( "." + extension ) ) {
-            // The extension is filled in and matches the end
-            // of the selected file => Strip off the extension.
-            String fileName = dialog.getFileName();
-            wFilename.setText( dialog.getFilterPath()
-              + System.getProperty( "file.separator" )
-              + fileName.substring( 0, fileName.length() - ( extension.length() + 1 ) ) );
-          } else {
-            wFilename.setText( dialog.getFilterPath()
-              + System.getProperty( "file.separator" ) + dialog.getFileName() );
+          try {
+            fileChooserDialog.initialFile =
+                KettleVFS.getFileObject( transMeta.environmentSubstitute( wFilename.getText() ) );
+          } catch ( KettleException ex ) {
+            fileChooserDialog.initialFile = null;
           }
+        }
+        FileObject
+            selectedFile =
+            fileChooserDialog
+                .open( shell, null, "file", new String[] { "*.txt", "*.csv", "*" },
+                    new String[] { BaseMessages.getString( PKG, "System.FileType.TextFiles" ),
+                        BaseMessages.getString( PKG, "System.FileType.CSVFiles" ),
+                        BaseMessages.getString( PKG, "System.FileType.AllFiles" ) },
+                    VfsFileChooserDialog.VFS_DIALOG_OPEN_FILE_OR_DIRECTORY );
+        if ( selectedFile != null ) {
+          String file = selectedFile.getName().getURI();
+          if ( !StringUtils.isBlank( file ) ) {
+            file = file.replace( "file://", "" ).replace( "/C:", "C:" );
+          }
+          if ( !file.contains( System.getProperty( "file.separator" ) ) ) {
+            if ( !System.getProperty( "file.separator" ).equals( "/" ) ) {
+              file = file.replace( "/", System.getProperty( "file.separator" ) );
+            }
+          }
+          wFilename.setText( file );
         }
       }
     } );
@@ -1289,12 +1274,18 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     return stepname;
   }
 
+  protected String getDialogTitle() {
+    return BaseMessages.getString( PKG, "TextFileOutputDialog.DialogTitle" );
+  }
+
+  protected Control addAdditionalComponentIfNeed( int middle, int margin, Composite wFileComp, Composite topComp ) {
+    return topComp;
+  }
+
   protected void setFlagsServletOption() {
     boolean enableFilename = !wServletOutput.getSelection();
     wlFilename.setEnabled( enableFilename );
     wFilename.setEnabled( enableFilename );
-    wlFileIsCommand.setEnabled( enableFilename );
-    wFileIsCommand.setEnabled( enableFilename );
     wlDoNotOpenNewFileInit.setEnabled( enableFilename );
     wDoNotOpenNewFileInit.setEnabled( enableFilename );
     wlCreateParentFolder.setEnabled( enableFilename );
@@ -1444,7 +1435,6 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     if ( input.getFileName() != null ) {
       wFilename.setText( input.getFileName() );
     }
-    wFileIsCommand.setSelection( input.isFileAsCommand() );
     wServletOutput.setSelection( input.isServletOutput() );
     setFlagsServletOption();
     wDoNotOpenNewFileInit.setSelection( input.isDoNotOpenNewFileInit() );
@@ -1476,7 +1466,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
       wFileNameField.setText( input.getFileNameField() );
     }
 
-    wSplitEvery.setText( "" + input.getSplitEvery() );
+    wSplitEvery.setText( Const.NVL( input.getSplitEveryRows(), "" ) );
 
     wEnclForced.setSelection( input.isEnclosureForced() );
     wDisableEnclosureFix.setSelection( input.isEnclosureFixDisabled() );
@@ -1545,9 +1535,8 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     dispose();
   }
 
-  private void saveInfoInMeta( TextFileOutputMeta tfoi ) {
+  protected void saveInfoInMeta( TextFileOutputMeta tfoi ) {
     tfoi.setFileName( wFilename.getText() );
-    tfoi.setFileAsCommand( wFileIsCommand.getSelection() );
     tfoi.setServletOutput( wServletOutput.getSelection() );
     tfoi.setCreateParentFolder( wCreateParentFolder.getSelection() );
     tfoi.setDoNotOpenNewFileInit( wDoNotOpenNewFileInit.getSelection() );
@@ -1557,7 +1546,7 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     tfoi.setSeparator( wSeparator.getText() );
     tfoi.setEnclosure( wEnclosure.getText() );
     tfoi.setExtension( wExtension.getText() );
-    tfoi.setSplitEvery( Const.toInt( wSplitEvery.getText(), 0 ) );
+    tfoi.setSplitEveryRows( wSplitEvery.getText() );
     tfoi.setEndedLine( wEndedLine.getText() );
 
     tfoi.setFileNameField( wFileNameField.getText() );
@@ -1713,9 +1702,8 @@ public class TextFileOutputDialog extends BaseStepDialog implements StepDialogIn
     wFields.optWidth( true );
   }
 
-  private void enableParentFolder() {
-    wlCreateParentFolder.setEnabled( !wFileIsCommand.getSelection() );
-    wCreateParentFolder.setEnabled( !wFileIsCommand.getSelection() );
+  protected void enableParentFolder() {
+    // it is enabled always in this implementation
   }
 
 }

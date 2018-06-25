@@ -39,7 +39,6 @@ import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
 import org.pentaho.di.trans.step.StepStatus;
-import org.pentaho.di.trans.steps.transexecutor.TransExecutorData;
 import org.pentaho.di.trans.steps.transexecutor.TransExecutorMeta;
 import org.pentaho.di.trans.steps.transexecutor.TransExecutorParameters;
 import org.pentaho.di.trans.streaming.api.StreamSource;
@@ -77,9 +76,9 @@ public class BaseStreamStep extends BaseStep {
       TransMeta transMeta = TransExecutorMeta
         .loadMappingMeta( stepMeta, getTransMeta().getRepository(), getTransMeta().getMetaStore(),
           getParentVariableSpace() );
-      subtransExecutor = new SubtransExecutor(
+      subtransExecutor = new SubtransExecutor( getStepname(),
         getTrans(), transMeta, true,
-        new TransExecutorData(), new TransExecutorParameters() );
+        new TransExecutorParameters(), environmentSubstitute( stepMeta.getSubStep() ) );
 
     } catch ( KettleException e ) {
       log.logError( e.getLocalizedMessage(), e );
@@ -102,6 +101,12 @@ public class BaseStreamStep extends BaseStep {
   }
 
 
+  @Override public void setOutputDone() {
+    if ( !safeStopped.get() ) {
+      super.setOutputDone();
+    }
+  }
+
   @Override public boolean processRow( StepMetaInterface smi, StepDataInterface sdi ) throws KettleException {
     Preconditions.checkArgument( first,
       BaseMessages.getString( PKG, "BaseStreamStep.ProcessRowsError" ) );
@@ -110,18 +115,30 @@ public class BaseStreamStep extends BaseStep {
 
     source.open();
 
-    bufferStream().forEach( result -> putRows( result.getRows() ) );
+    bufferStream().forEach( result -> {
+      if ( result.isSafeStop() ) {
+        getTrans().safeStop();
+      }
+
+      putRows( result.getRows() );
+    } );
+    super.setOutputDone();
+
+    // Needed for when an Abort Step is used.
+    source.close();
     return false;
   }
 
   private Iterable<Result> bufferStream() {
-    return window.buffer( source.rows() );
+    return window.buffer( source.observable() );
   }
 
   @Override
   public void stopRunning( StepMetaInterface stepMetaInterface, StepDataInterface stepDataInterface )
     throws KettleException {
-    subtransExecutor.stop();
+    if ( !safeStopped.get() ) {
+      subtransExecutor.stop();
+    }
     if ( source != null ) {
       source.close();
     }
@@ -143,7 +160,7 @@ public class BaseStreamStep extends BaseStep {
   }
 
   private void putRows( List<RowMetaAndData> rows ) {
-    if ( isStopped() ) {
+    if ( isStopped() && !safeStopped.get() ) {
       return;
     }
     rows.forEach( row -> {

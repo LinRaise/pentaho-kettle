@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <artifactId>repositories-plugin-core</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>bundle</packaging>
 
   <name>PDI Repositories Plugin Core</name>
@@ -12,16 +12,11 @@
   <parent>
     <groupId>org.pentaho.di.plugins</groupId>
     <artifactId>repositories</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <properties>
-    <pdi.version>8.1.0.0-SNAPSHOT</pdi.version>
-    <fasterxml.jackson.version>2.5.4</fasterxml.jackson.version>
-    <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
-    <pentaho-kettle.version>8.1-SNAPSHOT</pentaho-kettle.version>
-    <guava.version>17.0</guava.version>
-    <jackson-mapper-asl.version>1.9.2</jackson-mapper-asl.version>
+    <pdi.version>9.0.0.0-SNAPSHOT</pdi.version>
     <fasterxml.jackson.version>2.9.2</fasterxml.jackson.version>
     <javax.ws.rs-api.version>2.0</javax.ws.rs-api.version>
     <mockito-all.version>1.9.5</mockito-all.version>
@@ -29,7 +24,7 @@
     <osgi.version>4.3.1</osgi.version>
     <json-simple.version>1.1</json-simple.version>
     <javax.servlet-api.version>3.0.1</javax.servlet-api.version>
-    <commons-vfs2.version>2.1-20150824</commons-vfs2.version>
+    <commons-vfs2.version>2.2</commons-vfs2.version>
     <eclipse.version>3.6.0</eclipse.version>
     <pax-web-spi.version>3.1.4</pax-web-spi.version>
     <junit.version>4.11</junit.version>
@@ -40,17 +35,17 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
-      <version>${fasterxml.jackson.core.version}</version>
+      <version>${fasterxml.jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-annotations</artifactId>
-      <version>${fasterxml.jackson.core.version}</version>
+      <version>${fasterxml.jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>${fasterxml.jackson.core.version}</version>
+      <version>${fasterxml.jackson.version}</version>
     </dependency>
     <dependency>
       <groupId>com.fasterxml.jackson.jaxrs</groupId>
@@ -60,6 +55,11 @@
     <dependency>
       <groupId>com.fasterxml.jackson.jaxrs</groupId>
       <artifactId>jackson-jaxrs-base</artifactId>
+      <version>${fasterxml.jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-jaxb-annotations</artifactId>
       <version>${fasterxml.jackson.version}</version>
     </dependency>
     <dependency>

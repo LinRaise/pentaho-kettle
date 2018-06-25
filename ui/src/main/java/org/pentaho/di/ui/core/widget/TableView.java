@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.eclipse.jface.fieldassist.ControlDecoration;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.SWTException;
 import org.eclipse.swt.custom.CCombo;
@@ -160,7 +159,6 @@ public class TableView extends Composite {
   private boolean sortable;
   private int lastRowCount;
   private boolean fieldChanged;
-  private boolean insertImage;
 
   private Menu mRow;
 
@@ -189,7 +187,6 @@ public class TableView extends Composite {
   protected int textWidgetCaretPosition;
 
   private VariableSpace variables;
-  private ControlDecoration controlDecoration;
 
   private boolean showingBlueNullValues;
   private boolean showingConversionErrorsInline;
@@ -230,11 +227,11 @@ public class TableView extends Composite {
 
   public TableView( VariableSpace space, Composite parent, int style, ColumnInfo[] columnInfo, int nrRows,
       boolean readOnly, ModifyListener lsm, PropsUI pr, final boolean addIndexColumn ) {
-    this( space, parent, style, columnInfo, nrRows, readOnly, lsm, pr, addIndexColumn, false, null );
+    this( space, parent, style, columnInfo, nrRows, readOnly, lsm, pr, addIndexColumn, null );
   }
 
   public TableView( VariableSpace space, Composite parent, int style, ColumnInfo[] columnInfo, int nrRows,
-      boolean readOnly, ModifyListener lsm, PropsUI pr, final boolean addIndexColumn, final boolean insertImage, Listener lsnr ) {
+      boolean readOnly, ModifyListener lsm, PropsUI pr, final boolean addIndexColumn, Listener lsnr ) {
     super( parent, SWT.NO_BACKGROUND | SWT.NO_FOCUS | SWT.NO_MERGE_PAINTS | SWT.NO_RADIO_GROUP );
     this.parent = parent;
     this.columns = columnInfo;
@@ -244,7 +241,6 @@ public class TableView extends Composite {
     this.clipboard = null;
     this.variables = space;
     this.addIndexColumn = addIndexColumn;
-    this.insertImage = insertImage;
     this.lsFocusInTabItem = lsnr;
 
     sortfield = 0;
@@ -296,14 +292,6 @@ public class TableView extends Composite {
 
     // Create table, add columns & rows...
     table = new Table( this, style | SWT.MULTI );
-
-    Image image = GUIResource.getInstance().getImageVariable();
-    if ( insertImage ) {
-      controlDecoration = new ControlDecoration( table, SWT.TOP | SWT.RIGHT );
-      controlDecoration.setImage( image );
-      controlDecoration.setDescriptionText( BaseMessages.getString( PKG, "TextVar.tooltip.InsertVariable" ) );
-    }
-
     props.setLook( table, Props.WIDGET_STYLE_TABLE );
     table.setLinesVisible( true );
 
@@ -1327,9 +1315,6 @@ public class TableView extends Composite {
   }
 
   public void sortTable( int sortField, boolean sortingDescending ) {
-    sortTable( sortField, sortingDescending, true );
-  }
-  public void sortTable( int sortField, boolean sortingDescending, boolean resetRowNums ) {
     boolean shouldRefresh = false;
     if ( this.sortfieldLast == -1 && this.sortingDescendingLast == null ) {
       // first time through, so update
@@ -1493,9 +1478,6 @@ public class TableView extends Composite {
       table.setSortDirection( sortingDescending ? SWT.DOWN : SWT.UP );
 
       lastRowCount = table.getItemCount();
-      if ( resetRowNums ) {
-        setRowNums();
-      }
     } catch ( Exception e ) {
       new ErrorDialog( this.getShell(), BaseMessages.getString( PKG, "TableView.ErrorDialog.title" ), BaseMessages
         .getString( PKG, "TableView.ErrorDialog.description" ), e );
@@ -2380,10 +2362,12 @@ public class TableView extends Composite {
         }
       };
 
-      combo = new ComboVar( variables, table, SWT.SINGLE | SWT.LEFT | SWT.BORDER, null, getCaretPositionInterface, insertTextInterface, !insertImage );
+      combo = new ComboVar( variables, table, SWT.SINGLE | SWT.LEFT | SWT.BORDER, getCaretPositionInterface, insertTextInterface );
       ComboVar widget = (ComboVar) combo;
       if ( lsFocusInTabItem != null ) {
         widget.getCComboWidget().addListener( SWT.FocusIn, lsFocusInTabItem );
+      } else {
+        widget.setItems( opt );
       }
       props.setLook( widget, Props.WIDGET_STYLE_TABLE );
       widget.addTraverseListener( lsTraverse );
@@ -3325,4 +3309,7 @@ public class TableView extends Composite {
     this.tableViewModifyListener = tableViewModifyListener;
   }
 
+  public boolean hasIndexColumn() {
+    return this.addIndexColumn;
+  }
 }

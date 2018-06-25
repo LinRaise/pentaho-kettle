@@ -25,10 +25,13 @@ package org.pentaho.di.trans.steps.s3csvinput;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.jets3t.service.S3Service;
-import org.jets3t.service.S3ServiceException;
-import org.jets3t.service.impl.rest.httpclient.RestS3Service;
-import org.jets3t.service.security.AWSCredentials;
+import com.amazonaws.SdkClientException;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import org.pentaho.di.core.CheckResult;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
@@ -75,8 +78,8 @@ import org.w3c.dom.Node;
  */
 
 @Step( id = "S3CSVINPUT", image = "S3I.svg", i18nPackageName = "org.pentaho.di.trans.steps.s3csvinput",
-       name = "S3CsvInput.Step.Name", description = "S3CsvInput.Step.Description", categoryDescription = "Input",
-       documentationUrl = "http://wiki.pentaho.com/display/EAI/S3+CSV+Input" )
+    name = "S3CsvInput.Step.Name", description = "S3CsvInput.Step.Description", categoryDescription = "Input",
+    documentationUrl = "Products/Data_Integration/Transformation_Step_Reference/S3_CSV_Input" )
 @InjectionSupported( localizationPrefix = "S3CsvInput.Injection.", groups = { "INPUT_FIELDS" } )
 public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, InputFileMetaInterface {
 
@@ -116,10 +119,8 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
   @Injection( name = "RUNNING_IN_PARALLEL" )
   private boolean runningInParallel;
 
-  @Injection( name = "AWS_ACCESS_KEY" )
   private String awsAccessKey;
 
-  @Injection( name = "AWS_SECRET_KEY" )
   private String awsSecretKey;
 
   public S3CsvInputMeta() {
@@ -129,7 +130,7 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
 
   @Override
   public void loadXML( Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore )
-    throws KettleXMLException {
+      throws KettleXMLException {
     readData( stepnode );
   }
 
@@ -163,7 +164,6 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
       headerPresent = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "header" ) );
       lazyConversionActive = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "lazy_conversion" ) );
       runningInParallel = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "parallel" ) );
-
       Node fields = XMLHandler.getSubNode( stepnode, "fields" );
       int nrfields = XMLHandler.countNodes( fields, "field" );
 
@@ -238,7 +238,7 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
 
   @Override
   public void readRep( Repository rep, IMetaStore metaStore, ObjectId id_step, List<DatabaseMeta> databases )
-    throws KettleException {
+      throws KettleException {
     try {
       awsAccessKey = Encr.decryptPasswordOptionallyEncrypted( rep.getStepAttributeString( id_step, "aws_access_key" ) );
       awsSecretKey = Encr.decryptPasswordOptionallyEncrypted( rep.getStepAttributeString( id_step, "aws_secret_key" ) );
@@ -253,7 +253,6 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
       maxLineSize = rep.getStepAttributeString( id_step, "max_line_size" );
       lazyConversionActive = rep.getStepAttributeBoolean( id_step, "lazy_conversion" );
       runningInParallel = rep.getStepAttributeBoolean( id_step, "parallel" );
-
       int nrfields = rep.countNrStepAttributes( id_step, "field_name" );
 
       allocate( nrfields );
@@ -722,15 +721,29 @@ public class S3CsvInputMeta extends BaseStepMeta implements StepMetaInterface, I
     this.awsSecretKey = awsSecretKey;
   }
 
-  public S3Service getS3Service( VariableSpace space ) throws S3ServiceException {
-
-    // Try to connect to S3 first
-    //
+  public AmazonS3 getS3Client( VariableSpace space ) throws SdkClientException {
     String accessKey = Encr.decryptPasswordOptionallyEncrypted( space.environmentSubstitute( awsAccessKey ) );
     String secretKey = Encr.decryptPasswordOptionallyEncrypted( space.environmentSubstitute( awsSecretKey ) );
-    AWSCredentials awsCredentials = new AWSCredentials( accessKey, secretKey );
+    AWSCredentials credentials = null;
 
-    S3Service s3service = new RestS3Service( awsCredentials );
-    return s3service;
+    if ( !isEmpty( accessKey ) && !isEmpty( secretKey ) ) {
+      // Handle legacy credentials ( embedded in the step ).  We'll force a region since it not specified and
+      // then turn on GlobalBucketAccess so if the files accessed are elsewhere it won't matter.
+      BasicAWSCredentials awsCreds = new BasicAWSCredentials( accessKey, secretKey );
+      return AmazonS3ClientBuilder.standard()
+        .withCredentials( new AWSStaticCredentialsProvider( awsCreds ) )
+        .enableForceGlobalBucketAccess()
+        .withRegion( Regions.US_EAST_1 )
+        .build();
+    } else {
+      // Get Credentials the new way
+      return AmazonS3ClientBuilder.standard()
+        .enableForceGlobalBucketAccess()
+        .build();
+    }
+  }
+
+  private boolean isEmpty( String value ) {
+    return value == null || value.length() <= 0;
   }
 }

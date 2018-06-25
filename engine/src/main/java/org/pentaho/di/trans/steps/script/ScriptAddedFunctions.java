@@ -3,7 +3,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -23,6 +23,30 @@
 
 package org.pentaho.di.trans.steps.script;
 
+import com.google.common.annotations.VisibleForTesting;
+import org.apache.commons.vfs2.FileObject;
+import org.apache.commons.vfs2.FileType;
+import org.apache.commons.vfs2.FileUtil;
+import org.pentaho.di.core.Const;
+import org.pentaho.di.core.database.Database;
+import org.pentaho.di.core.database.DatabaseMeta;
+import org.pentaho.di.core.exception.KettleFileException;
+import org.pentaho.di.core.gui.SpoonFactory;
+import org.pentaho.di.core.gui.SpoonInterface;
+import org.pentaho.di.core.row.RowDataUtil;
+import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.core.util.EnvUtil;
+import org.pentaho.di.core.variables.VariableSpace;
+import org.pentaho.di.core.vfs.KettleVFS;
+
+import javax.mail.Message;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
+import javax.script.Bindings;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,36 +67,13 @@ import java.text.Format;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import javax.mail.Message;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
-import javax.script.Bindings;
-import javax.script.ScriptEngine;
-import javax.script.ScriptException;
-
-import org.apache.commons.vfs2.FileObject;
-import org.apache.commons.vfs2.FileType;
-import org.apache.commons.vfs2.FileUtil;
-import org.pentaho.di.core.Const;
-import org.pentaho.di.core.database.Database;
-import org.pentaho.di.core.database.DatabaseMeta;
-import org.pentaho.di.core.exception.KettleFileException;
-import org.pentaho.di.core.gui.SpoonFactory;
-import org.pentaho.di.core.gui.SpoonInterface;
-import org.pentaho.di.core.row.RowDataUtil;
-import org.pentaho.di.core.row.RowMetaInterface;
-import org.pentaho.di.core.util.EnvUtil;
-import org.pentaho.di.core.variables.VariableSpace;
-import org.pentaho.di.core.vfs.KettleVFS;
 
 public class ScriptAddedFunctions {
 
@@ -1738,10 +1739,10 @@ public class ScriptAddedFunctions {
        * Signal.getMessage() + "\")"); } catch (IOException Signal) { new RuntimeException("Error while reading file \""
        * + fileName + "\" (reason: \"" + Signal.getMessage() + "\")" ); }
        */
-      new RuntimeException( "Error while reading file \""
+      throw new RuntimeException( "Error while reading file \""
         + fileName + "\" (reason: \"" + Signal.getMessage() + "\")" );
     } catch ( ScriptException Signal ) {
-      new RuntimeException( "Error while reading file \""
+      throw new RuntimeException( "Error while reading file \""
         + fileName + "\" (reason: \"" + Signal.getMessage() + "\")" );
     } finally {
       try {
@@ -1965,12 +1966,12 @@ public class ScriptAddedFunctions {
           if ( fileObject.exists() ) {
             if ( fileObject.getType() == FileType.FILE ) {
               if ( !fileObject.delete() ) {
-                new RuntimeException( "We can not delete file [" + (String) ArgList[0] + "]!" );
+                throw new RuntimeException( "We can not delete file [" + (String) ArgList[0] + "]!" );
               }
             }
 
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
         } catch ( IOException e ) {
           throw new RuntimeException( "The function call deleteFile is not valid." );
@@ -2004,7 +2005,7 @@ public class ScriptAddedFunctions {
           if ( !fileObject.exists() ) {
             fileObject.createFolder();
           } else {
-            new RuntimeException( "folder [" + (String) ArgList[0] + "] already exist!" );
+            throw new RuntimeException( "folder [" + ArgList[0] + "] already exist!" );
           }
         } catch ( IOException e ) {
           throw new RuntimeException( "The function call createFolder is not valid." );
@@ -2056,7 +2057,7 @@ public class ScriptAddedFunctions {
 
             }
           } else {
-            new RuntimeException( "file to copy [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file to copy [" + ArgList[0] + "] can not be found!" );
           }
         } catch ( IOException e ) {
           throw new RuntimeException( "The function call copyFile throw an error : " + e.toString() );
@@ -2102,10 +2103,10 @@ public class ScriptAddedFunctions {
             if ( file.getType().equals( FileType.FILE ) ) {
               filesize = file.getContent().getSize();
             } else {
-              new RuntimeException( "[" + (String) ArgList[0] + "] is not a file!" );
+              throw new RuntimeException( "[" + ArgList[0] + "] is not a file!" );
             }
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
           return filesize;
         } catch ( IOException e ) {
@@ -2145,10 +2146,10 @@ public class ScriptAddedFunctions {
             if ( file.getType().equals( FileType.FILE ) ) {
               isafile = true;
             } else {
-              new RuntimeException( "[" + (String) ArgList[0] + "] is not a file!" );
+              throw new RuntimeException( "[" + ArgList[0] + "] is not a file!" );
             }
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
           return isafile;
         } catch ( IOException e ) {
@@ -2188,10 +2189,10 @@ public class ScriptAddedFunctions {
             if ( file.getType().equals( FileType.FOLDER ) ) {
               isafolder = true;
             } else {
-              new RuntimeException( "[" + (String) ArgList[0] + "] is not a folder!" );
+              throw new RuntimeException( "[" + ArgList[0] + "] is not a folder!" );
             }
           } else {
-            new RuntimeException( "folder [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "folder [" + ArgList[0] + "] can not be found!" );
           }
           return isafolder;
         } catch ( IOException e ) {
@@ -2228,10 +2229,10 @@ public class ScriptAddedFunctions {
           file = KettleVFS.getFileObject( (String) ArgList[0] );
           String Filename = null;
           if ( file.exists() ) {
-            Filename = file.getName().getBaseName().toString();
+            Filename = file.getName().getBaseName();
 
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
 
           return Filename;
@@ -2269,10 +2270,10 @@ public class ScriptAddedFunctions {
           file = KettleVFS.getFileObject( (String) ArgList[0] );
           String Extension = null;
           if ( file.exists() ) {
-            Extension = file.getName().getExtension().toString();
+            Extension = file.getName().getExtension();
 
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
 
           return Extension;
@@ -2313,7 +2314,7 @@ public class ScriptAddedFunctions {
             foldername = KettleVFS.getFilename( file.getParent() );
 
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
 
           return foldername;
@@ -2360,7 +2361,7 @@ public class ScriptAddedFunctions {
             lastmodifiedtime = dateFormat.format( lastmodifiedtimedate );
 
           } else {
-            new RuntimeException( "file [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file [" + ArgList[0] + "] can not be found!" );
           }
 
           return lastmodifiedtime;
@@ -2412,57 +2413,62 @@ public class ScriptAddedFunctions {
   @SuppressWarnings( "fallthrough" )
   public static Object truncDate( ScriptEngine actualContext, Bindings actualObject, Object[] ArgList,
     Object FunctionContext ) {
-    try {
-      // 2 arguments: truncation of dates to a certain precision
-      //
-      if ( ArgList.length == 2 ) {
-        if ( isNull( ArgList[0] ) ) {
-          return null;
-        } else if ( isUndefined( ArgList[0] ) ) {
-          return undefinedValue;
-        }
-
-        // This is the truncation of a date...
-        // The second argument specifies the level: ms, s, min, hour, day, month, year
-        //
-        java.util.Date dArg1 = (java.util.Date) ArgList[0];
-        Calendar cal = Calendar.getInstance();
-        cal.setTime( dArg1 );
-
-        Integer level = (Integer) ArgList[1];
-
-        switch ( level.intValue() ) {
-        // MONTHS
-          case 5:
-            cal.set( Calendar.MONTH, 1 );
-            // DAYS
-          case 4:
-            cal.set( Calendar.DAY_OF_MONTH, 1 );
-            // HOURS
-          case 3:
-            cal.set( Calendar.HOUR_OF_DAY, 0 );
-            // MINUTES
-          case 2:
-            cal.set( Calendar.MINUTE, 0 );
-            // SECONDS
-          case 1:
-            cal.set( Calendar.SECOND, 0 );
-            // MILI-SECONDS
-          case 0:
-            cal.set( Calendar.MILLISECOND, 0 );
-            break;
-          default:
-            throw new RuntimeException( "Argument of TRUNC of date has to be between 0 and 5" );
-        }
-
-        return cal.getTime();
-      } else {
-        throw new RuntimeException( "The function call truncDate requires 2 arguments: a date and a level (int)" );
+    // 2 arguments: truncation of dates to a certain precision
+    //
+    if ( ArgList.length == 2 ) {
+      if ( isNull( ArgList[0] ) ) {
+        return null;
+      } else if ( isUndefined( ArgList[0] ) ) {
+        return undefinedValue;
       }
-    } catch ( Exception e ) {
-      throw new RuntimeException( e.toString() );
+
+      // This is the truncation of a date...
+      // The second argument specifies the level: ms, s, min, hour, day, month, year
+      //
+      java.util.Date dArg1 = null;
+      Integer level = null;
+      try {
+        dArg1 = (java.util.Date) ArgList[0];
+        level = (Integer) ArgList[1];
+      } catch ( Exception e ) {
+        throw new RuntimeException( e.toString() );
+      }
+      return ScriptAddedFunctions.truncDate( dArg1, level );
+    } else {
+      throw new RuntimeException( "The function call truncDate requires 2 arguments: a date and a level (int)" );
     }
   }
+
+  @VisibleForTesting
+  static Date truncDate( Date dArg1, Integer level ) {
+    Calendar cal = Calendar.getInstance();
+    cal.setTime( dArg1 );
+    switch ( level.intValue() ) {
+      // MONTHS
+      case 5:
+        cal.set( Calendar.MONTH, 0 );
+        // DAYS
+      case 4:
+        cal.set( Calendar.DAY_OF_MONTH, 1 );
+        // HOURS
+      case 3:
+        cal.set( Calendar.HOUR_OF_DAY, 0 );
+        // MINUTES
+      case 2:
+        cal.set( Calendar.MINUTE, 0 );
+        // SECONDS
+      case 1:
+        cal.set( Calendar.SECOND, 0 );
+        // MILI-SECONDS
+      case 0:
+        cal.set( Calendar.MILLISECOND, 0 );
+        break;
+      default:
+        throw new RuntimeException( "Argument of TRUNC of date has to be between 0 and 5" );
+    }
+    return cal.getTime();
+  }
+
 
   public static void moveFile( ScriptEngine actualContext, Bindings actualObject, Object[] ArgList,
     Object FunctionContext ) {
@@ -2494,7 +2500,7 @@ public class ScriptAddedFunctions {
 
             }
           } else {
-            new RuntimeException( "file to move [" + (String) ArgList[0] + "] can not be found!" );
+            throw new RuntimeException( "file to move [" + ArgList[0] + "] can not be found!" );
           }
         } catch ( IOException e ) {
           throw new RuntimeException( "The function call moveFile throw an error : " + e.toString() );

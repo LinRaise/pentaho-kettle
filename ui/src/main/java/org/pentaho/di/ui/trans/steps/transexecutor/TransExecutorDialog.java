@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -350,8 +350,8 @@ public class TransExecutorDialog extends BaseStepDialog implements StepDialogInt
 
   protected Image getImage() {
     return SwtSvgImageUtil
-      .getImage( shell.getDisplay(), getClass().getClassLoader(), "TRNEx.svg", ConstUI.ICON_SIZE,
-        ConstUI.ICON_SIZE );
+      .getImage( shell.getDisplay(), getClass().getClassLoader(), "TRNEx.svg", ConstUI.LARGE_ICON_SIZE,
+        ConstUI.LARGE_ICON_SIZE );
   }
 
   private void selectRepositoryTrans() {
@@ -449,10 +449,6 @@ public class TransExecutorDialog extends BaseStepDialog implements StepDialogInt
         if ( Utils.isEmpty( filename ) ) {
           return;
         }
-        if ( filename.endsWith( ".ktr" ) ) {
-          filename = filename.replace( ".ktr", "" );
-          wPath.setText( filename );
-        }
         String transPath = transMeta.environmentSubstitute( filename );
         String realTransname = transPath;
         String realDirectory = "";
@@ -544,7 +540,9 @@ public class TransExecutorDialog extends BaseStepDialog implements StepDialogInt
     tiExecutionLogChannelIdField
       .setText( FIELD_NAME, Const.NVL( transExecutorMeta.getExecutionLogChannelIdField(), "" ) );
 
-    executorOutputStep = transExecutorMeta.getExecutorsOutputStep();
+    if ( transExecutorMeta.getExecutorsOutputStepMeta() != null ) {
+      executorOutputStep = transExecutorMeta.getExecutorsOutputStepMeta().getName();
+    }
 
     // result files
     //
@@ -684,7 +682,9 @@ public class TransExecutorDialog extends BaseStepDialog implements StepDialogInt
 
         TableItem item = new TableItem( wTransExecutorParameters.table, SWT.NONE );
         item.setText( 1, Const.NVL( name, "" ) );
-        item.setText( 3, Const.NVL( desc, "" ) );
+        String str = inputTransMeta.getParameterDefault( name );
+        str = ( str != null ? str : ( desc != null ? desc : "" ) );
+        item.setText( 3, Const.NVL( str, "" ) );
       }
       wTransExecutorParameters.removeEmptyRows();
       wTransExecutorParameters.setRowNums();

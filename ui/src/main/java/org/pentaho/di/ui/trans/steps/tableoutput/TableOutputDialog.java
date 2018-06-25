@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -588,6 +588,7 @@ public class TableOutputDialog extends BaseStepDialog implements StepDialogInter
         setFlags();
       }
     } );
+    wNameInField.addSelectionListener( lsSelMod );
 
     // NameField size ...
     wlNameField = new Label( wMainComp, SWT.RIGHT );
@@ -640,7 +641,7 @@ public class TableOutputDialog extends BaseStepDialog implements StepDialogInter
         setFlags();
       }
     } );
-
+    wNameInTable.addSelectionListener( lsSelMod );
     // Return generated keys?
     wlReturnKeys = new Label( wMainComp, SWT.RIGHT );
     wlReturnKeys.setText( BaseMessages.getString( PKG, "TableOutputDialog.ReturnKeys.Label" ) );
@@ -1081,10 +1082,10 @@ public class TableOutputDialog extends BaseStepDialog implements StepDialogInter
               try {
                 db.connect();
 
-                String schemaTable =
-                  ci.getQuotedSchemaTableCombination( transMeta.environmentSubstitute( schemaName ), transMeta
-                    .environmentSubstitute( tableName ) );
-                RowMetaInterface r = db.getTableFields( schemaTable );
+                RowMetaInterface r =
+                  db.getTableFieldsMeta(
+                    transMeta.environmentSubstitute( schemaName ),
+                    transMeta.environmentSubstitute( tableName ) );
                 if ( null != r ) {
                   String[] fieldNames = r.getFieldNames();
                   if ( null != fieldNames ) {

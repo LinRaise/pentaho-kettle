@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -75,6 +75,7 @@ import org.w3c.dom.Node;
 
 import com.google.common.annotations.VisibleForTesting;
 
+@SuppressWarnings( "deprecation" )
 @InjectionSupported( localizationPrefix = "TextFileInput.Injection.", groups = { "FILENAME_LINES", "FIELDS", "FILTERS" } )
 public class TextFileInputMeta extends BaseFileInputMeta<BaseFileInputAdditionalField, BaseFileInputFiles, BaseFileField>
     implements StepMetaInterface, ResolvableResource {
@@ -437,27 +438,16 @@ public class TextFileInputMeta extends BaseFileInputMeta<BaseFileInputAdditional
   @Override
   public Object clone() {
     TextFileInputMeta retval = (TextFileInputMeta) super.clone();
-
-    int nrfiles = inputFiles.fileName.length;
-    int nrfields = inputFields.length;
-    int nrfilters = filter.length;
-
-    retval.allocate( nrfiles, nrfields, nrfilters );
-
-    System.arraycopy( inputFiles.fileName, 0, retval.inputFiles.fileName, 0, nrfiles );
-    System.arraycopy( inputFiles.fileMask, 0, retval.inputFiles.fileMask, 0, nrfiles );
-    System.arraycopy( inputFiles.excludeFileMask, 0, retval.inputFiles.excludeFileMask, 0, nrfiles );
-    System.arraycopy( inputFiles.fileRequired, 0, retval.inputFiles.fileRequired, 0, nrfiles );
-    System.arraycopy( inputFiles.includeSubFolders, 0, retval.inputFiles.includeSubFolders, 0, nrfiles );
-
-    for ( int i = 0; i < nrfields; i++ ) {
+    retval.inputFiles = (BaseFileInputFiles) inputFiles.clone();
+    retval.inputFields = new BaseFileField[inputFields.length];
+    for ( int i = 0; i < inputFields.length; i++ ) {
       retval.inputFields[i] = (BaseFileField) inputFields[i].clone();
     }
 
-    for ( int i = 0; i < nrfilters; i++ ) {
+    retval.filter = new TextFileFilter[filter.length];
+    for ( int i = 0; i < filter.length; i++ ) {
       retval.filter[i] = (TextFileFilter) filter[i].clone();
     }
-
     return retval;
   }
 
@@ -722,14 +712,16 @@ public class TextFileInputMeta extends BaseFileInputMeta<BaseFileInputAdditional
     retval.append( "    " + XMLHandler.addTagValue( "add_to_result_filenames", inputFiles.isaddresult ) );
 
     retval.append( "    <file>" ).append( Const.CR );
+    //we need the equals by size arrays for inputFiles.fileName[i], inputFiles.fileMask[i], inputFiles.fileRequired[i], inputFiles.includeSubFolders[i]
+    //to prevent the ArrayIndexOutOfBoundsException
+    inputFiles.normalizeAllocation( inputFiles.fileName.length );
     for ( int i = 0; i < inputFiles.fileName.length; i++ ) {
       saveSource( retval, inputFiles.fileName[i] );
       parentStepMeta.getParentTransMeta().getNamedClusterEmbedManager().registerUrl( inputFiles.fileName[i] );
       retval.append( "      " ).append( XMLHandler.addTagValue( "filemask", inputFiles.fileMask[i] ) );
       retval.append( "      " ).append( XMLHandler.addTagValue( "exclude_filemask", inputFiles.excludeFileMask[i] ) );
       retval.append( "      " ).append( XMLHandler.addTagValue( "file_required", inputFiles.fileRequired[i] ) );
-      retval.append( "      " ).append( XMLHandler.addTagValue( "include_subfolders",
-          inputFiles.includeSubFolders[i] ) );
+      retval.append( "      " ).append( XMLHandler.addTagValue( "include_subfolders", inputFiles.includeSubFolders[i] ) );
     }
     retval.append( "      " ).append( XMLHandler.addTagValue( "type", content.fileType ) );
     retval.append( "      " ).append( XMLHandler.addTagValue( "compression", ( content.fileCompression == null )
@@ -1026,6 +1018,9 @@ public class TextFileInputMeta extends BaseFileInputMeta<BaseFileInputAdditional
 
       rep.saveStepAttribute( id_transformation, id_step, "limit", content.rowLimit );
 
+      //we need the equals by size arrays for inputFiles.fileName[i], inputFiles.fileMask[i], inputFiles.fileRequired[i], inputFiles.includeSubFolders[i]
+      //to prevent the ArrayIndexOutOfBoundsException
+      inputFiles.normalizeAllocation( inputFiles.fileName.length );
       for ( int i = 0; i < inputFiles.fileName.length; i++ ) {
         saveSourceRep( rep, id_transformation, id_step, i, inputFiles.fileName[i] );
         rep.saveStepAttribute( id_transformation, id_step, i, "file_mask", inputFiles.fileMask[i] );
@@ -1374,7 +1369,7 @@ public class TextFileInputMeta extends BaseFileInputMeta<BaseFileInputAdditional
     for ( int i = 0; i < inputFiles.fileName.length; i++ ) {
       if ( inputFiles.fileName[i] != null && !inputFiles.fileName[i].isEmpty() ) {
         try {
-          FileObject fileObject = KettleVFS.getFileObject( inputFiles.fileName[i] );
+          FileObject fileObject = KettleVFS.getFileObject( getParentStepMeta().getParentTransMeta().environmentSubstitute( inputFiles.fileName[i] ) );
           if ( AliasedFileObject.isAliasedFile( fileObject ) ) {
             inputFiles.fileName[i] = ( (AliasedFileObject) fileObject ).getOriginalURIString();
           }

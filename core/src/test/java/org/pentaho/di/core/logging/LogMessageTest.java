@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -19,23 +19,24 @@
  * limitations under the License.
  *
  ******************************************************************************/
+
 package org.pentaho.di.core.logging;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.pentaho.di.core.Const;
+
+import java.text.MessageFormat;
 
 /**
  * @author Tatsiana_Kasiankova
  *
  */
 public class LogMessageTest {
-
   private LogMessage logMessage;
 
   private static final String LOG_MESSAGE = "Test Message";
@@ -51,11 +52,7 @@ public class LogMessageTest {
   @After
   public void tearDown() {
     LoggingRegistry.getInstance().removeIncludingChildren( treeLogChannelId );
-  }
-
-  @AfterClass
-  public static void afterClass() {
-    LoggingRegistry.getInstance().getMap().clear();
+    System.clearProperty( Const.KETTLE_LOG_MARK_MAPPINGS );
   }
 
   @Test
@@ -116,6 +113,13 @@ public class LogMessageTest {
     assertEquals( "Subject - Log message for Test", msg.toString( ) );
   }
 
+  @Test
+  public void testGetMessage() {
+    LogMessage msg = new LogMessage( "m {0}, {1}, {2}, {3}, {4,number,#.00}, {5} {foe}", "Channel 01",
+      new Object[] { "Foo", "{abc}", "", null, 123 }, LogLevel.DEBUG );
+    assertEquals( "m Foo, {abc}, , null, 123.00, {5} {foe}", msg.getMessage() );
+  }
+
   private void turnOnLogMarkMapping() {
     System.getProperties().put( Const.KETTLE_LOG_MARK_MAPPINGS, "Y" );
   }
@@ -138,8 +142,7 @@ public class LogMessageTest {
   private static LoggingObjectInterface getLoggingObjectWithOneParent() {
     LoggingObjectInterface rootLogObject = new SimpleLoggingObject( "ROOT_SUBJECT", LoggingObjectType.SPOON, null );
     LoggingObjectInterface transLogObject =
-        new SimpleLoggingObject( "TRANS_SUBJECT", LoggingObjectType.TRANS, rootLogObject );
+      new SimpleLoggingObject( "TRANS_SUBJECT", LoggingObjectType.TRANS, rootLogObject );
     return transLogObject;
   }
-
 }

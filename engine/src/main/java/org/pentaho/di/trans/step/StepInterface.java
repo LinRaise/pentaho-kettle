@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -145,6 +145,20 @@ public interface StepInterface extends VariableSpace, HasLogChannelInterface {
    *          true if the step needs to be stopped
    */
   public void setStopped( boolean stopped );
+
+  /**
+   * @param stopped
+   *          true if the step needs to be safe stopped
+   */
+  default void setSafeStopped( boolean stopped ) {
+  }
+
+  /**
+   * @return true if step is safe stopped.
+   */
+  default boolean isSafeStopped() {
+    return false;
+  }
 
   /**
    * @return True if the step is paused
@@ -391,7 +405,7 @@ public interface StepInterface extends VariableSpace, HasLogChannelInterface {
   public void setPartitioned( boolean partitioned );
 
   /**
-   * @param partitioningMethodNone
+   * @param partitioningMethod
    *          The repartitioning method
    */
   public void setRepartitioning( int partitioningMethod );
@@ -453,6 +467,14 @@ public interface StepInterface extends VariableSpace, HasLogChannelInterface {
 
   default Collection<StepStatus> subStatuses() {
     return Collections.emptyList();
+  }
+
+  default void addRowSetToInputRowSets( RowSet rowSet ) {
+    getInputRowSets().add( rowSet );
+  }
+
+  default void addRowSetToOutputRowSets( RowSet rowSet ) {
+    getOutputRowSets().add( rowSet );
   }
 
 }

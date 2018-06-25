@@ -6,11 +6,11 @@
   <parent>
     <groupId>org.pentaho.di.plugins</groupId>
     <artifactId>pdi-plugins</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>s3csvinput</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <name>PDI S3 CSV Input Plugin</name>
@@ -33,9 +33,8 @@
   <properties>
     <org.eclipse.swt.version>4.6</org.eclipse.swt.version>
     <jface.version>3.3.0-I20070606-0010</jface.version>
-    <junit.version>4.7</junit.version>
-    <jets3t.version>0.9.4</jets3t.version>
-    <pdi.version>8.1.0.0-SNAPSHOT</pdi.version>
+    <aws.version>1.11.275</aws.version>
+    <pdi.version>9.0.0.0-SNAPSHOT</pdi.version>
   </properties>
 
   <dependencyManagement>
@@ -69,18 +68,6 @@
         <artifactId>metastore</artifactId>
         <version>${pdi.version}</version>
         <scope>provided</scope>
-        <exclusions>
-          <exclusion>
-            <artifactId>*</artifactId>
-            <groupId>*</groupId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>net.java.dev.jets3t</groupId>
-        <artifactId>jets3t</artifactId>
-        <version>${jets3t.version}</version>
-        <scope>compile</scope>
         <exclusions>
           <exclusion>
             <artifactId>*</artifactId>
@@ -126,7 +113,14 @@
         <version>${pdi.version}</version>
         <classifier>tests</classifier>
         <scope>test</scope>
-        </dependency>
+      </dependency>
+      <dependency>
+        <groupId>pentaho-kettle</groupId>
+        <artifactId>kettle-core</artifactId>
+        <version>${pdi.version}</version>
+        <classifier>tests</classifier>
+        <scope>test</scope>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

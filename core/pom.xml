@@ -6,7 +6,7 @@
 
   <groupId>pentaho-kettle</groupId>
   <artifactId>kettle-core</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>PDI Core</name>
@@ -14,12 +14,12 @@
   <parent>
     <groupId>org.pentaho.di</groupId>
     <artifactId>pdi</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <properties>
     <!-- Test running configuration -->
-    <maven-surefire-plugin.reuseForks>false</maven-surefire-plugin.reuseForks>
+    <maven-surefire-plugin.reuseForks>true</maven-surefire-plugin.reuseForks>
 
     <!-- Third-party dependencies -->
     <slf4j-api.version>1.7.7</slf4j-api.version>
@@ -29,7 +29,7 @@
     <spring.framework.version>4.3.2.RELEASE</spring.framework.version>
     <commons-collections.version>3.2.2</commons-collections.version>
     <commons-lang.version>2.6</commons-lang.version>
-    <commons-vfs2.version>2.1-20150824</commons-vfs2.version>
+    <commons-vfs2.version>2.2</commons-vfs2.version>
     <commons-io.version>2.2</commons-io.version>
     <commons-dbcp.version>1.4</commons-dbcp.version>
     <commons-pool.version>1.5.7</commons-pool.version>
@@ -38,6 +38,7 @@
     <jetty-util.version>8.1.15.v20140411</jetty-util.version>
     <jug-lgpl.version>2.0.0</jug-lgpl.version>
     <jsch.version>0.1.54</jsch.version>
+    <jzlib.version>1.0.7</jzlib.version>
     <ognl.version>2.6.9</ognl.version>
     <scannotation.version>1.0.2</scannotation.version>
     <com.wcohen.secondstring.version>0.1</com.wcohen.secondstring.version>
@@ -48,6 +49,7 @@
     <woodstox-core-asl.version>4.4.1</woodstox-core-asl.version>
     <httpclient.version>4.5.3</httpclient.version>
     <httpccore.version>4.4.6</httpccore.version>
+    <xmlunit.version>1.5</xmlunit.version>
   </properties>
 
   <dependencies>
@@ -415,6 +417,18 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>com.jcraft</groupId>
+      <artifactId>jzlib</artifactId>
+      <version>${jzlib.version}</version>
+      <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>*</artifactId>
+          <groupId>*</groupId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
       <groupId>ognl</groupId>
       <artifactId>ognl</artifactId>
       <version>${ognl.version}</version>
@@ -484,6 +498,11 @@
       <groupId>org.codehaus.woodstox</groupId>
       <artifactId>wstx-asl</artifactId>
     </dependency>
+    <dependency>
+      <groupId>pentaho</groupId>
+      <artifactId>simple-jndi</artifactId>
+      <version>${simple-jndi.version}</version>
+    </dependency>
 
     <!-- Test dependencies -->
     <dependency>
@@ -502,16 +521,37 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>pentaho</groupId>
-      <artifactId>simple-jndi</artifactId>
-      <version>${simple-jndi.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-test</artifactId>
       <version>${spring.framework.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>xmlunit</groupId>
+      <artifactId>xmlunit</artifactId>
+      <version>${xmlunit.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <includes>
+                <include>org/pentaho/di/junit/**</include>
+                <include>org/pentaho/di/concurrency/**</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
 </project>

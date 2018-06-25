@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -78,6 +78,7 @@ public class JobEntrySetVariables extends JobEntryBase implements Cloneable, Job
   public int[] variableType;
 
   public String filename;
+
   public int fileVariableType;
 
   public static final int VARIABLE_TYPE_JVM = 0;
@@ -232,25 +233,24 @@ public class JobEntrySetVariables extends JobEntryBase implements Cloneable, Job
       List<Integer> variableTypes = new ArrayList<Integer>();
 
       String realFilename = environmentSubstitute( filename );
-      try {
-        if ( !Utils.isEmpty( realFilename ) ) {
+      if ( !Utils.isEmpty( realFilename ) ) {
+        try ( InputStream is = KettleVFS.getInputStream( realFilename );
+            // for UTF8 properties files
+            InputStreamReader isr = new InputStreamReader( is, "UTF-8" );
+            BufferedReader reader = new BufferedReader( isr );
+            ) {
           Properties properties = new Properties();
-          InputStream is = KettleVFS.getInputStream( realFilename );
-          // for UTF8 properties files
-          InputStreamReader isr = new InputStreamReader( is, "UTF-8" );
-          BufferedReader reader = new BufferedReader( isr );
           properties.load( reader );
           for ( Object key : properties.keySet() ) {
             variables.add( (String) key );
             variableValues.add( (String) properties.get( key ) );
             variableTypes.add( fileVariableType );
           }
+        } catch ( Exception e ) {
+          throw new KettleException( BaseMessages.getString(
+            PKG, "JobEntrySetVariables.Error.UnableReadPropertiesFile", realFilename ) );
         }
-      } catch ( Exception e ) {
-        throw new KettleException( BaseMessages.getString(
-          PKG, "JobEntrySetVariables.Error.UnableReadPropertiesFile", realFilename ) );
       }
-
       for ( int i = 0; i < variableName.length; i++ ) {
         variables.add( variableName[i] );
         variableValues.add( variableValue[i] );

@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -55,7 +56,7 @@ import org.pentaho.di.core.logging.LogLevel;
 import org.pentaho.di.core.vfs.KettleVFS;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.i18n.BaseMessages;
-import org.pentaho.di.i18n.LanguageChoice;
+import org.pentaho.di.i18n.GlobalMessageUtil;
 import org.scannotation.AnnotationDB;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
@@ -495,6 +496,7 @@ public abstract class BasePluginType implements PluginTypeInterface {
       String documentationUrl = getTagOrAttribute( pluginNode, "documentation_url" );
       String casesUrl = getTagOrAttribute( pluginNode, "cases_url" );
       String forumUrl = getTagOrAttribute( pluginNode, "forum_url" );
+      String suggestion = getTagOrAttribute( pluginNode, "suggestion" );
 
       Node libsnode = XMLHandler.getSubNode( pluginNode, "libraries" );
       int nrlibs = XMLHandler.countNodes( libsnode, "library" );
@@ -516,6 +518,9 @@ public abstract class BasePluginType implements PluginTypeInterface {
       Map<String, String> localDescriptions =
         readPluginLocale( pluginNode, "localized_description", "description" );
       description = getAlternativeTranslation( description, localDescriptions );
+      description += addDeprecation( category );
+
+      suggestion = getAlternativeTranslation( suggestion, localDescriptions );
 
       Map<String, String> localizedTooltips = readPluginLocale( pluginNode, "localized_tooltip", "tooltip" );
       tooltip = getAlternativeTranslation( tooltip, localizedTooltips );
@@ -553,7 +558,7 @@ public abstract class BasePluginType implements PluginTypeInterface {
         new Plugin(
           id.split( "," ), pluginType, mainClassTypesAnnotation.value(), category, description, tooltip,
           iconFilename, false, nativePlugin, classMap, jarFiles, errorHelpFileFull, pluginFolder,
-          documentationUrl, casesUrl, forumUrl );
+          documentationUrl, casesUrl, forumUrl, suggestion );
       registry.registerPlugin( pluginType, pluginInterface );
 
       return pluginInterface;
@@ -586,15 +591,11 @@ public abstract class BasePluginType implements PluginTypeInterface {
     if ( input.startsWith( "i18n" ) ) {
       return getCodedTranslation( input );
     } else {
-      String defLocale = LanguageChoice.getInstance().getDefaultLocale().toString().toLowerCase();
-      String alt = localizedMap.get( defLocale );
-      if ( !Utils.isEmpty( alt ) ) {
-        return alt;
-      }
-      String failoverLocale = LanguageChoice.getInstance().getFailoverLocale().toString().toLowerCase();
-      alt = localizedMap.get( failoverLocale );
-      if ( !Utils.isEmpty( alt ) ) {
-        return alt;
+      for ( final Locale locale : GlobalMessageUtil.getActiveLocales() ) {
+        String alt = localizedMap.get( locale.toString().toLowerCase() );
+        if ( !Utils.isEmpty( alt ) ) {
+          return alt;
+        }
       }
       // Nothing found?
       // Return the original!
@@ -673,6 +674,8 @@ public abstract class BasePluginType implements PluginTypeInterface {
   protected abstract String extractI18nPackageName( java.lang.annotation.Annotation annotation );
 
   protected abstract String extractDocumentationUrl( java.lang.annotation.Annotation annotation );
+
+  protected abstract String extractSuggestion( java.lang.annotation.Annotation annotation );
 
   protected abstract String extractCasesUrl( java.lang.annotation.Annotation annotation );
 
@@ -759,7 +762,10 @@ public abstract class BasePluginType implements PluginTypeInterface {
     String documentationUrl = extractDocumentationUrl( annotation );
     String casesUrl = extractCasesUrl( annotation );
     String forumUrl = extractForumUrl( annotation );
+    String suggestion = getTranslation( extractSuggestion( annotation ), packageName, altPackageName, clazz );
     String classLoaderGroup = extractClassLoaderGroup( annotation );
+
+    name += addDeprecation( category );
 
     Map<Class<?>, String> classMap = new HashMap<>();
 
@@ -773,7 +779,7 @@ public abstract class BasePluginType implements PluginTypeInterface {
       new Plugin(
         ids, this.getClass(), mainType.value(), category, name, description, imageFile, separateClassLoader,
         classLoaderGroup, nativePluginType, classMap, libraries, null, pluginFolder, documentationUrl,
-        casesUrl, forumUrl );
+        casesUrl, forumUrl, suggestion );
 
     ParentFirst parentFirstAnnotation = clazz.getAnnotation( ParentFirst.class );
     if ( parentFirstAnnotation != null ) {
@@ -795,4 +801,12 @@ public abstract class BasePluginType implements PluginTypeInterface {
    * @param annotation
    */
   protected abstract void addExtraClasses( Map<Class<?>, String> classMap, Class<?> clazz, Annotation annotation );
+
+  private String addDeprecation( String category ) {
+    String deprecated = BaseMessages.getString( PKG, "PluginRegistry.Category.Deprecated" );
+    if ( deprecated.equals( category )  ) {
+      return " (" + deprecated.toLowerCase() + ")";
+    }
+    return "";
+  }
 }

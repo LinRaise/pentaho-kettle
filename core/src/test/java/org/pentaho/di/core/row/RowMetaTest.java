@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -26,6 +26,7 @@ import org.apache.commons.io.IOUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.KettleClientEnvironment;
 import org.pentaho.di.core.exception.KettlePluginException;
@@ -37,14 +38,11 @@ import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaString;
 import org.pentaho.di.core.row.value.ValueMetaTimestamp;
 import org.pentaho.di.core.xml.XMLHandler;
+import org.pentaho.di.junit.rules.RestorePDIEnvironment;
 import org.w3c.dom.Document;
 
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -55,6 +53,7 @@ import static org.junit.Assert.assertTrue;
 import static org.mockito.Mockito.spy;
 
 public class RowMetaTest {
+  @ClassRule public static RestorePDIEnvironment env = new RestorePDIEnvironment();
 
   RowMetaInterface rowMeta = new RowMeta();
   ValueMetaInterface string;
@@ -492,6 +491,18 @@ public class RowMetaTest {
     assertEquals( "sample", names[0] );
     for ( int i = 1; i < names.length; i++ ) {
       assertEquals( "", names[i] );
+    }
+  }
+
+  @Test
+  public void testHashCode() {
+    rowMeta.clear();
+    byte[] byteArray = new byte[]{ 49, 50, 51 };
+    Object[] objArray = new Object[]{ byteArray };
+    try {
+      assertEquals( 78512, rowMeta.hashCode( objArray ) );
+    } catch (KettleValueException e) {
+      e.printStackTrace();
     }
   }
 

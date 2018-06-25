@@ -1,5 +1,5 @@
 /*!
- * Copyright 2017 Hitachi Vantara. All rights reserved.
+ * Copyright 2017-2018 Hitachi Vantara. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ define(
     function() {
       "use strict";
 
-      var factoryArray = ["$http", factory];
+      var factoryArray = ["$http", "$q", factory];
       var module = {
         name: "dataService",
         factory: factoryArray
@@ -42,11 +42,14 @@ define(
        *
        * @return {Object} The dataService api
        */
-      function factory($http) {
+      function factory($http, $q) {
         var baseUrl = "/cxf/browser";
-        return {
+        var httpRequestCancellers = [];
+          return {
           getDirectoryTree: getDirectoryTree,
           getFiles: getFiles,
+          getFolders: getFolders,
+          getFilesAndFolders: getFilesAndFolders,
           getActiveFileName: getActiveFileName,
           getRecentFiles: getRecentFiles,
           updateRecentFiles: updateRecentFiles,
@@ -56,9 +59,12 @@ define(
           openRecent: openRecent,
           openFile: openFile,
           saveFile: saveFile,
+          checkForSecurityOrDupeIssues: checkForSecurityOrDupeIssues,
           rename: rename,
           create: create,
-          remove: remove
+          remove: remove,
+          search: search,
+          cancelSearch: cancelSearch
         };
 
         /**
@@ -73,11 +79,46 @@ define(
         /**
          * Load files for a specific directory
          *
-         * @param {String} id - The object id for a directory
+         * @param {String} path - The path for a directory
          * @return {Promise} - a promise resolved once data is returned
          */
-        function getFiles(id) {
-          return _httpGet([baseUrl, "loadFiles", encodeURIComponent(id)].join("/"));
+        function getFiles(path) {
+          return _httpGet([baseUrl, "loadFiles", encodeURIComponent(path)].join("/"));
+        }
+
+        /**
+         * Load files and folders for a specific directory
+         *
+         * @param {String} path - The path for a directory
+         * @return {Promise} - a promise resolved once data is returned
+         */
+        function getFilesAndFolders(path) {
+          return _httpGet([baseUrl, "loadFilesAndFolders", encodeURIComponent(path)].join("/"));
+        }
+
+        function cancelSearch() {
+          if (httpRequestCancellers.length > 0) {
+            for (var i = 0; i < httpRequestCancellers.length; i++) {
+              httpRequestCancellers[i].resolve();
+            }
+          }
+          httpRequestCancellers = [];
+        }
+
+        function search(path, value) {
+          return _httpGet([baseUrl, "search", encodeURIComponent(path), value].join("/"));
+        }
+
+        /**
+         * Load subfolders for a specific directory
+         *
+         * @param {String} path - The path for a directory
+         * @return {Promise} - a promise resolved once data is returned
+         */
+        function getFolders(path) {
+          var httpRequestCanceller = $q.defer();
+          httpRequestCancellers.push(httpRequestCanceller);
+          return _httpGet([baseUrl, "loadFolders", encodeURIComponent(path)].join("/"), httpRequestCanceller.promise);
         }
 
         /**
@@ -104,10 +145,33 @@ define(
          *
          * @param {String} path - The path to which to save file
          * @param {String} name - The file name
+         * @param {String} fileName - Possible dupe file name...needed to verify possible dupe on back end
+         * @param {String} override - true to override, false to not
          * @return {Promise} - a promise resolved once data is returned
          */
-        function saveFile(path, name) {
-          return _httpGet([baseUrl, "saveFile", encodeURIComponent(path), name].join("/"));
+        function saveFile(path, name, fileName, override) {
+          if (fileName === null) {
+            return _httpGet([baseUrl, "saveFile", encodeURIComponent(path), name, override].join("/"));
+          }
+          return _httpGet([baseUrl, "saveFile", encodeURIComponent(path), name, fileName, override].join("/"));
+        }
+
+        /**
+         * Check for security issues or hidden duplicate files before saving
+         *
+         * @param {String} path - The path to which to save file
+         * @param {String} name - The file name
+         * @param {String} fileName - Possible dupe file name...needed to verify possible dupe on back end
+         * @param {String} override - true to override, false to not
+         * @return {Promise} - a promise resolved once data is returned
+         */
+        function checkForSecurityOrDupeIssues(path, name, fileName, override) {
+          if (fileName === null) {
+            return _httpGet([baseUrl, "checkForSecurityOrDupeIssues",
+              encodeURIComponent(path), name, override].join("/"));
+          }
+          return _httpGet([baseUrl, "checkForSecurityOrDupeIssues",
+            encodeURIComponent(path), name, fileName, override].join("/"));
         }
 
         /**
@@ -218,8 +282,8 @@ define(
          * @return {Promise} - a promise to be resolved as soon as we get confirmation from the server.
          * @private
          */
-        function _httpGet(url) {
-          return _wrapHttp("GET", url);
+        function _httpGet(url, timeout) {
+          return _wrapHttp("GET", url, null, timeout);
         }
 
         /**
@@ -251,16 +315,18 @@ define(
          * @param {String} method - the http method to use
          * @param {String} url - the url
          * @param {String} data - the data to send to the server
+         * @params {Function} timeout - a timeout promise
          * @return {Promise} - a promise to be resolved as soon as we get confirmation from the server.
          * @private
          */
-        function _wrapHttp(method, url, data) {
+        function _wrapHttp(method, url, data, timeout) {
           var options = {
             method: method,
             url: _cacheBust(url),
             headers: {
               Accept: "application/json"
-            }
+            },
+            timeout: timeout
           };
           if (data !== null) {
             options.data = data;

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,6 +22,7 @@
 package org.pentaho.di.trans;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -29,26 +30,32 @@ import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 import org.pentaho.di.core.Const;
+import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.ObjectLocationSpecificationMethod;
 import org.pentaho.di.core.ProgressMonitorListener;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
 import org.pentaho.di.repository.Repository;
 import org.pentaho.di.repository.RepositoryDirectoryInterface;
+import org.pentaho.di.trans.step.StepDataInterface;
+import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
 import org.powermock.api.mockito.PowerMockito;
 import org.powermock.core.classloader.annotations.PrepareForTest;
 import org.powermock.modules.junit4.PowerMockRunner;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
+import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.anyMap;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 
 /**
@@ -59,6 +66,15 @@ public class StepWithMappingMetaTest {
 
   @Mock
   TransMeta transMeta;
+
+  @Before
+  public void setupBefore() throws Exception {
+    // Without initialization of the Kettle Environment, the load of the transformation fails
+    // when run in Windows (saying it cannot find the Database plugin ID for Oracle). Digging into
+    // it I discovered that it's during the read of the shared objects xml which doesn't reference Oracle
+    // at all. Initializing the environment fixed everything.
+    KettleEnvironment.init();
+  }
 
   @Test
   public void loadMappingMeta() throws Exception {
@@ -108,10 +124,26 @@ public class StepWithMappingMetaTest {
     StepWithMappingMeta.loadMappingMeta( mappingMetaMock, rep, null, variables, true );
   }
 
+  @SuppressWarnings( "unchecked" )
   @Test
   @PrepareForTest( StepWithMappingMeta.class )
   public void testExportResources() throws Exception {
-    StepWithMappingMeta stepWithMappingMeta = spy( StepWithMappingMeta.class );
+    StepWithMappingMeta stepWithMappingMeta = spy( new StepWithMappingMeta() {
+
+      @Override
+      public void setDefault() {
+      }
+
+      @Override
+      public StepDataInterface getStepData() {
+        return null;
+      }
+
+      @Override
+      public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr, TransMeta transMeta, Trans trans ) {
+        return null;
+      }
+    } );
     String testName = "test";
     PowerMockito.mockStatic( StepWithMappingMeta.class );
     when( StepWithMappingMeta.loadMappingMeta( any(), any(), any(), any() ) ).thenReturn( transMeta );
@@ -120,7 +152,6 @@ public class StepWithMappingMetaTest {
     stepWithMappingMeta.exportResources( null, null, null, null, null );
     verify( transMeta ).setFilename( "${" + Const.INTERNAL_VARIABLE_ENTRY_CURRENT_DIRECTORY + "}/" + testName );
     verify( stepWithMappingMeta ).setSpecificationMethod( ObjectLocationSpecificationMethod.FILENAME );
-
   }
 
   @Test
@@ -178,6 +209,41 @@ public class StepWithMappingMetaTest {
     Assert.assertEquals( parentValue, transMeta.getVariable( parentParam ) );
   }
 
+  @Test
+  @PrepareForTest( StepWithMappingMeta.class )
+  public void loadMappingMetaTest_PathShouldBeTakenFromParentTrans() throws Exception {
+
+    String fileName = "subtrans-executor-sub.ktr";
+    Path parentFolder = Paths.get( getClass().getResource( "subtrans-executor-sub.ktr" ).toURI() ).getParent();
+
+    //we have transformation
+    VariableSpace variables = new Variables();
+    variables.setVariable( Const.INTERNAL_VARIABLE_ENTRY_CURRENT_DIRECTORY, parentFolder.toString() );
+    TransMeta parentTransMeta = new TransMeta( variables );
+
+    //we have step in this transformation
+    StepMeta stepMeta = new StepMeta();
+    stepMeta.setParentTransMeta( parentTransMeta );
+
+    //attach the executor to step which was described above
+    StepWithMappingMeta mappingMetaMock = mock( StepWithMappingMeta.class );
+    when( mappingMetaMock.getSpecificationMethod() ).thenReturn( ObjectLocationSpecificationMethod.FILENAME );
+    when( mappingMetaMock.getFileName() ).thenReturn( "${" + Const.INTERNAL_VARIABLE_ENTRY_CURRENT_DIRECTORY + "}/" + fileName );
+    when( mappingMetaMock.getParentStepMeta() ).thenReturn( stepMeta );
+
+    //we will try to load the subtras which was linked at the step metas
+    TransMeta transMeta = StepWithMappingMeta.loadMappingMeta( mappingMetaMock, null, null, variables, true );
+
+    StringBuilder expected = new StringBuilder( parentFolder.toUri().toString() );
+    /**
+     * we need to remove "/" at the end of expected string because during load the trans from file 
+     * internal variables will be replaced by uri from kettle vfs
+     * check the follow points
+     * {@link org.pentaho.di.trans.TransMeta#setInternalFilenameKettleVariables(VariableSpace)}
+     * 
+     */
+    Assert.assertEquals( expected.deleteCharAt( expected.length() - 1 ).toString(), transMeta.getVariable( Const.INTERNAL_VARIABLE_ENTRY_CURRENT_DIRECTORY ) );
+  }
 
 
   @Test
@@ -200,5 +266,59 @@ public class StepWithMappingMetaTest {
 
     Assert.assertEquals( childValue, childVariableSpace.getVariable( childParam ) );
     Assert.assertEquals( parentValue, childVariableSpace.getVariable( paramOverwrite ) );
+  }
+
+  @Test
+  @PrepareForTest( StepWithMappingMeta.class )
+  public void activateParamsTestWithNoParameterChild() throws Exception {
+    String newParam = "newParamParent";
+    String parentValue = "parentValue";
+
+    TransMeta parentMeta = new TransMeta();
+    TransMeta childVariableSpace = new TransMeta();
+
+    String[] parameters = childVariableSpace.listParameters();
+
+    StepWithMappingMeta.activateParams( childVariableSpace, childVariableSpace, parentMeta,
+      parameters, new String[] { newParam }, new String[] { parentValue } );
+
+    Assert.assertEquals( parentValue, childVariableSpace.getParameterValue( newParam ) );
+  }
+
+  @Test
+  @PrepareForTest( StepWithMappingMeta.class )
+  public void testFileNameAsVariable() throws Exception {
+
+    String transName = "test.ktr";
+    String transDirectory = "/admin";
+
+    String transNameVar = "transName";
+    String transDirectoryVar = "transDirectory";
+
+    VariableSpace parent = new Variables();
+    parent.setVariable( transNameVar, transName );
+    parent.setVariable( transDirectoryVar, transDirectory );
+
+    StepMeta stepMeta = new StepMeta();
+    TransMeta parentTransMeta = new TransMeta();
+    stepMeta.setParentTransMeta( parentTransMeta );
+
+    StepWithMappingMeta mappingMetaMock = mock( StepWithMappingMeta.class );
+    Mockito.when( mappingMetaMock.getSpecificationMethod() ).thenReturn( ObjectLocationSpecificationMethod.FILENAME );
+    Mockito.when( mappingMetaMock.getFileName() ).thenReturn( "${" + transDirectoryVar + "}/${" + transNameVar + "}" );
+    Mockito.when( mappingMetaMock.getParentStepMeta() ).thenReturn( stepMeta );
+
+    Repository rep = mock( Repository.class );
+    RepositoryDirectoryInterface directoryInterface = Mockito.mock( RepositoryDirectoryInterface.class );
+    Mockito.doReturn( directoryInterface ).when( rep ).findDirectory( anyString() );
+    Mockito.doReturn( new TransMeta() ).when( rep )
+      .loadTransformation( anyString(), any(), any(), anyBoolean(), any() );
+
+    TransMeta transMeta = StepWithMappingMeta.loadMappingMeta( mappingMetaMock, rep, null, parent, true );
+
+    Assert.assertNotNull( transMeta );
+    Mockito.verify( rep, Mockito.times( 1 ) ).findDirectory( Mockito.eq( transDirectory ) );
+    Mockito.verify( rep, Mockito.times( 1 ) ).loadTransformation( Mockito.eq( transName ),
+      Mockito.eq( directoryInterface ), Mockito.eq( null ), Mockito.eq( true ), Mockito.eq( null ) );
   }
 }

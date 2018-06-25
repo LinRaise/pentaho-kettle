@@ -54,7 +54,7 @@ public abstract class BlockingQueueStreamSource<T> implements StreamSource<T> {
   private final AtomicBoolean paused = new AtomicBoolean( false );
 
   private final FlowableProcessor<T> publishProcessor = ReplayProcessor.create();
-  private final BaseStreamStep streamStep;
+  protected final BaseStreamStep streamStep;
 
   // binary semaphore used to block acceptance of rows when paused
   @VisibleForTesting Semaphore acceptingRowsSemaphore = new Semaphore( 1 );
@@ -65,14 +65,14 @@ public abstract class BlockingQueueStreamSource<T> implements StreamSource<T> {
   }
 
 
-  @Override public Iterable<T> rows() {
+  @Override public Observable<T> observable() {
     return Observable
-      .fromPublisher( publishProcessor )
-      .blockingIterable();
+      .fromPublisher( publishProcessor );
   }
 
   @Override public void close() {
     if ( !publishProcessor.hasComplete() ) {
+
       publishProcessor.onComplete();
     }
   }

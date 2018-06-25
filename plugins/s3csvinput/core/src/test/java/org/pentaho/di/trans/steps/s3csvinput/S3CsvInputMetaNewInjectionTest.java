@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -23,10 +23,13 @@
 package org.pentaho.di.trans.steps.s3csvinput;
 
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.injection.BaseMetadataInjectionTest;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 
 public class S3CsvInputMetaNewInjectionTest extends BaseMetadataInjectionTest<S3CsvInputMeta> {
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
 
   @Before
   public void setup() {
@@ -35,16 +38,6 @@ public class S3CsvInputMetaNewInjectionTest extends BaseMetadataInjectionTest<S3
 
   @Test
   public void test() throws Exception {
-    check( "AWS_ACCESS_KEY", new StringGetter() {
-      public String get() {
-        return meta.getAwsAccessKey();
-      }
-    } );
-    check( "AWS_SECRET_KEY", new StringGetter() {
-      public String get() {
-        return meta.getAwsSecretKey();
-      }
-    } );
     check( "BUCKET", new StringGetter() {
       public String get() {
         return meta.getBucket();

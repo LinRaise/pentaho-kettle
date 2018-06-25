@@ -3,7 +3,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -1349,6 +1349,9 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
         if ( transMeta.isUsingUniqueConnections() ) {
           trans.closeUniqueDatabaseConnections( getResult() );
         }
+
+        // release unused vfs connections
+        KettleVFS.freeUnusedResources();
       }
     };
     // This should always be done first so that the other listeners achieve a clean state to start from (setFinished and
@@ -1611,6 +1614,11 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
       boolean wait = true;
       while ( wait ) {
         wait = transFinishedBlockingQueue.poll( 1, TimeUnit.DAYS ) == null;
+        if ( wait ) {
+          // poll returns immediately - this was hammering the CPU with poll checks. Added
+          // a sleep to let the CPU breathe
+          Thread.sleep( 1 );
+        }
       }
     } catch ( InterruptedException e ) {
       throw new RuntimeException( "Waiting for transformation to be finished interrupted!", e );
@@ -1879,37 +1887,53 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
   }
 
   /**
+   * Stops only input steps so that all downstream steps can finish processing rows that have already been input
+   */
+  public void safeStop() {
+    if ( steps == null ) {
+      return;
+    }
+    steps.stream()
+      .filter( combi -> combi.step.getInputRowSets().isEmpty() )
+      .forEach( combi -> stopStep( combi, true ) );
+
+    notifyStoppedListeners();
+  }
+
+  /**
    * Stops all steps from running, and alerts any registered listeners.
    */
   public void stopAll() {
     if ( steps == null ) {
       return;
     }
-
-    // log.logDetailed("DIS: Checking wether of not ["+sname+"]."+cnr+" has started!");
-    // log.logDetailed("DIS: hasStepStarted() looking in "+threads.size()+" threads");
-    for ( int i = 0; i < steps.size(); i++ ) {
-      StepMetaDataCombi sid = steps.get( i );
-      StepInterface rt = sid.step;
-      rt.setStopped( true );
-      rt.resumeRunning();
-
-      // Cancel queries etc. by force...
-      StepInterface si = rt;
-      try {
-        si.stopRunning( sid.meta, sid.data );
-      } catch ( Exception e ) {
-        log.logError( "Something went wrong while trying to stop the transformation: " + e.toString() );
-        log.logError( Const.getStackTracker( e ) );
-      }
-
-      sid.data.setStatus( StepExecutionStatus.STATUS_STOPPED );
-    }
+    steps.forEach( combi -> stopStep( combi, false ) );
 
     // if it is stopped it is not paused
     setPaused( false );
     setStopped( true );
 
+    notifyStoppedListeners();
+  }
+
+  public void stopStep( StepMetaDataCombi combi, boolean safeStop ) {
+    StepInterface rt = combi.step;
+    rt.setStopped( true );
+    rt.setSafeStopped( safeStop );
+    rt.resumeRunning();
+
+    try {
+      rt.stopRunning( combi.meta, combi.data );
+    } catch ( Exception e ) {
+      log.logError( "Something went wrong while trying to safe stop the transformation: ", e );
+    }
+    combi.data.setStatus( StepExecutionStatus.STATUS_STOPPED );
+    if ( safeStop ) {
+      rt.setOutputDone();
+    }
+  }
+
+  public void notifyStoppedListeners() {
     // Fire the stopped listener...
     //
     synchronized ( transStoppedListeners ) {
@@ -2594,6 +2618,10 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
 
       result.setNrErrors( result.getNrErrors() + sid.step.getErrors() );
       result.getResultFiles().putAll( step.getResultFiles() );
+
+      if ( step.isSafeStopped() ) {
+        result.setSafeStop( step.isSafeStopped() );
+      }
 
       if ( step.getStepname().equals( transLogTable.getSubjectString( TransLogTable.ID.LINES_READ ) ) ) {
         result.setNrLinesRead( result.getNrLinesRead() + step.getLinesRead() );
@@ -3294,7 +3322,7 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
     }
 
     // Add this rowset to the list of active rowsets for the selected step
-    stepInterface.getInputRowSets().add( rowSet );
+    stepInterface.addRowSetToInputRowSets( rowSet );
 
     return new RowProducer( stepInterface, rowSet );
   }
@@ -4215,9 +4243,13 @@ public class Trans implements VariableSpace, NamedParams, HasLogChannelInterface
         //
         FileObject tempFile = KettleVFS.createTempFile( "transExport", KettleVFS.Suffix.ZIP, transMeta );
 
+        //the executionConfiguration should not include a repository here because all the resources should be
+        //retrieved from the exported zip file
+        TransExecutionConfiguration clonedConfiguration = (TransExecutionConfiguration) executionConfiguration.clone();
+        clonedConfiguration.setRepository( null );
         TopLevelResource topLevelResource =
             ResourceUtil.serializeResourceExportInterface( tempFile.getName().toString(), transMeta, transMeta,
-                repository, metaStore, executionConfiguration.getXML(), CONFIGURATION_IN_EXPORT_FILENAME );
+                repository, metaStore, clonedConfiguration.getXML(), CONFIGURATION_IN_EXPORT_FILENAME );
 
         // Send the zip file over to the slave server...
         //

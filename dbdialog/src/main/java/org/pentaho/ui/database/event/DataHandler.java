@@ -34,6 +34,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.Collections;
 import org.apache.commons.lang.StringUtils;
 import org.eclipse.swt.widgets.Display;
 import org.pentaho.di.core.Const;
@@ -41,6 +42,7 @@ import org.pentaho.di.core.database.BaseDatabaseMeta;
 import org.pentaho.di.core.database.DatabaseConnectionPoolParameter;
 import org.pentaho.di.core.database.DatabaseInterface;
 import org.pentaho.di.core.database.DatabaseMeta;
+import org.pentaho.di.core.database.DatabaseTestResults;
 import org.pentaho.di.core.database.GenericDatabaseMeta;
 import org.pentaho.di.core.database.MSSQLServerNativeDatabaseMeta;
 import org.pentaho.di.core.database.OracleDatabaseMeta;
@@ -63,6 +65,7 @@ import org.pentaho.ui.xul.components.XulLabel;
 import org.pentaho.ui.xul.components.XulMessageBox;
 import org.pentaho.ui.xul.components.XulTextbox;
 import org.pentaho.ui.xul.components.XulTreeCell;
+import org.pentaho.ui.xul.components.XulMenuList;
 import org.pentaho.ui.xul.containers.XulDeck;
 import org.pentaho.ui.xul.containers.XulDialog;
 import org.pentaho.ui.xul.containers.XulListbox;
@@ -91,6 +94,8 @@ public class DataHandler extends AbstractXulEventHandler {
   private static final String EXTRA_OPTION_WEB_APPLICATION_NAME = BaseDatabaseMeta.ATTRIBUTE_PREFIX_EXTRA_OPTION
       + "KettleThin.webappname";
   private static final String DEFAULT_WEB_APPLICATION_NAME = "pentaho";
+
+  private List<String> databaseDialects;
 
   // The connectionMap allows us to keep track of the connection
   // type we are working with and the correlating database interface
@@ -233,12 +238,20 @@ public class DataHandler extends AbstractXulEventHandler {
 
   protected XulTree poolParameterTree;
 
+  protected XulMenuList databaseDialectList;
+
   protected XulButton acceptButton;
   private XulButton cancelButton;
   private XulButton testButton;
   private XulLabel noticeLabel;
 
   public DataHandler() {
+    databaseDialects = new ArrayList<String>();
+    DatabaseInterface[] dialectMetas = DatabaseMeta.getDatabaseInterfaces();
+    for ( DatabaseInterface dialect : dialectMetas ) {
+      databaseDialects.add( dialect.getPluginName() );
+    }
+    Collections.sort( databaseDialects );
   }
 
   public void loadConnectionData() {
@@ -603,10 +616,10 @@ public class DataHandler extends AbstractXulEventHandler {
       for ( int i = 0; i < remarks.length; i++ ) {
         message = message.concat( "* " ).concat( remarks[i] ).concat( System.getProperty( "line.separator" ) );
       }
+      showMessage( message, message.length() > 300 );
     } else {
-      message = database.testConnection();
+      showMessage( database.testConnectionSuccess() );
     }
-    showMessage( message, message.length() > 300 );
   }
 
   protected void getInfo( DatabaseMeta meta ) {
@@ -1219,6 +1232,13 @@ public class DataHandler extends AbstractXulEventHandler {
       meta.setPassword( passwordBox.getValue() );
     }
 
+    if ( databaseDialectList != null ) {
+      DatabaseInterface databaseInterface = meta.getDatabaseInterface();
+      if ( databaseInterface instanceof  GenericDatabaseMeta ) {
+        ( (GenericDatabaseMeta) databaseInterface).setDatabaseDialect( databaseDialectList.getValue() );
+      }
+    }
+
     // if(this.portNumberBox != null){
     // meta.setDBPort(portNumberBox.getValue());
     // }
@@ -1307,6 +1327,14 @@ public class DataHandler extends AbstractXulEventHandler {
   private void setConnectionSpecificInfo( DatabaseMeta meta ) {
 
     getControls();
+
+    if ( databaseDialectList != null ) {
+      databaseDialectList.setElements( databaseDialects  );
+      DatabaseInterface databaseInterface = meta.getDatabaseInterface();
+      if ( databaseInterface instanceof  GenericDatabaseMeta ) {
+        databaseDialectList.setSelectedItem( ( (GenericDatabaseMeta) databaseInterface).getDatabaseDialect() );
+      }
+    }
 
     if ( hostNameBox != null ) {
       hostNameBox.setValue( meta.getHostname() );
@@ -1422,6 +1450,7 @@ public class DataHandler extends AbstractXulEventHandler {
     dialogDeck = (XulDeck) document.getElementById( "dialog-panel-deck" );
     deckOptionsBox = (XulListbox) document.getElementById( "deck-options-list" );
     connectionBox = (XulListbox) document.getElementById( "connection-type-list" );
+    databaseDialectList = (XulMenuList) document.getElementById( "database-dialect-list" );
     accessBox = (XulListbox) document.getElementById( "access-type-list" );
     connectionNameBox = (XulTextbox) document.getElementById( "connection-name-text" );
     hostNameBox = (XulTextbox) document.getElementById( "server-host-name-text" );
@@ -1507,6 +1536,13 @@ public class DataHandler extends AbstractXulEventHandler {
     } catch ( XulException e ) {
       System.out.println( "Error creating messagebox " + e.getMessage() );
     }
+  }
+
+  protected void showMessage( DatabaseTestResults databaseTestResults ) {
+    // BACKLOG-23781 - provide a showMessage implementation for
+    // those that don't override it (PRD case)
+    String message = databaseTestResults.getMessage();
+    showMessage( message, message.length() > 300 );
   }
 
   public void handleUseSecurityCheckbox() {

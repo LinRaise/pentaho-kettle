@@ -4,7 +4,7 @@
   ~
   ~  Pentaho Data Integration
   ~
-  ~  Copyright (C) 2002-2017 by Pentaho : http://www.pentaho.com
+  ~  Copyright (C) 2002-2018 by Pentaho : http://www.pentaho.com
   ~
   ~  *******************************************************************************
   ~  Licensed under the Apache License, Version 2.0 (the "License"); you may not use
@@ -59,6 +59,12 @@
 
   <bean id="runConfigurationImportExtensionPoint" scope="singleton"
         class="org.pentaho.di.engine.configuration.impl.extension.RunConfigurationImportExtensionPoint">
+    <argument ref="runConfigurationManager"/>
+    <pen:di-plugin type="org.pentaho.di.core.extension.ExtensionPointPluginType"/>
+  </bean>
+
+  <bean id="runConfigurationInjectExtensionPoint" scope="singleton"
+        class="org.pentaho.di.engine.configuration.impl.extension.RunConfigurationInjectExtensionPoint">
     <argument ref="runConfigurationManager"/>
     <pen:di-plugin type="org.pentaho.di.core.extension.ExtensionPointPluginType"/>
   </bean>

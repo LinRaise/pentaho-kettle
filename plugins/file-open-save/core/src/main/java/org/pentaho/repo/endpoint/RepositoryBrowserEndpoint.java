@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Hitachi Vantara. All rights reserved.
+ * Copyright 2017-2018 Hitachi Vantara. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@ import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.repository.ObjectId;
 import org.pentaho.repo.controller.RepositoryBrowserController;
 import org.pentaho.repo.model.RepositoryDirectory;
+import org.pentaho.repo.model.RepositoryTree;
 
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
@@ -33,7 +34,6 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.Collections;
-import java.util.List;
 
 /**
  * Created by bmorrise on 5/12/17.
@@ -50,16 +50,16 @@ public class RepositoryBrowserEndpoint {
   @Path( "/loadDirectoryTree{filter : (/filter)?}" )
   @Produces( { MediaType.APPLICATION_JSON } )
   public Response loadDirectoryTree( @PathParam( "filter" ) String filter ) {
-    List<RepositoryDirectory> repositoryDirectories;
+    RepositoryTree repositoryTree;
     if ( filter.equals( "false" ) ) {
-      repositoryDirectories = repositoryBrowserController.loadDirectoryTree( null );
+      repositoryTree = repositoryBrowserController.loadDirectoryTree();
     } else {
-      repositoryDirectories = Utils.isEmpty( filter ) ? repositoryBrowserController.loadDirectoryTree()
-        : repositoryBrowserController.loadDirectoryTree( filter );
+      repositoryTree = Utils.isEmpty( filter ) ? repositoryBrowserController.loadDirectoryTree()
+        : repositoryBrowserController.loadDirectoryTree();
     }
 
-    if ( repositoryDirectories != null ) {
-      return Response.ok( repositoryDirectories ).build();
+    if ( repositoryTree != null ) {
+      return Response.ok( repositoryTree ).build();
     }
 
     return Response.noContent().build();
@@ -76,9 +76,27 @@ public class RepositoryBrowserEndpoint {
   }
 
   @GET
-  @Path( "/loadFiles/{id}" )
-  public Response loadFile( @PathParam( "id" ) String id ) {
-    return Response.ok( repositoryBrowserController.loadFiles( id ) ).build();
+  @Path( "/loadFiles/{path}" )
+  @Produces( { MediaType.APPLICATION_JSON } )
+  public Response loadFile( @PathParam( "path" ) String path ) {
+    RepositoryDirectory repositoryDirectory = repositoryBrowserController.loadFiles( path );
+    return Response.ok( repositoryDirectory ).build();
+  }
+
+  @GET
+  @Path( "/loadFolders/{path}" )
+  @Produces( { MediaType.APPLICATION_JSON } )
+  public Response loadFolders( @PathParam( "path" ) String path ) {
+    RepositoryDirectory repositoryDirectory = repositoryBrowserController.loadFolders( path );
+    return Response.ok( repositoryDirectory ).build();
+  }
+
+  @GET
+  @Path( "/loadFilesAndFolders/{path}" )
+  @Produces( { MediaType.APPLICATION_JSON } )
+  public Response loadFilesAndFolders( @PathParam( "path" ) String path ) {
+    RepositoryDirectory repositoryDirectory = repositoryBrowserController.loadFilesAndFolders( path );
+    return Response.ok( repositoryDirectory ).build();
   }
 
   @GET
@@ -91,18 +109,55 @@ public class RepositoryBrowserEndpoint {
   @GET
   @Path( "/loadRecent/{repo}/{id}" )
   public Response loadRecent( @PathParam( "repo" ) String repo, @PathParam( "id" ) String id ) {
-    repositoryBrowserController.openRecentFile( repo, id );
-
-    return Response.ok().build();
+    if ( repositoryBrowserController.openRecentFile( repo, id ) ) {
+      return Response.ok().build();
+    }
+    return Response.status( Response.Status.NOT_FOUND ).build();
   }
 
   @GET
-  @Path( "/saveFile/{path}/{name}" )
-  public Response saveFile( @PathParam( "path" ) String path, @PathParam( "name" ) String name ) {
-    if ( repositoryBrowserController.saveFile( path, name ) ) {
+  @Path( "/saveFile/{path}/{name}/{fileName}/{override}" )
+  public Response saveFile( @PathParam( "path" ) String path, @PathParam( "name" ) String name,
+                            @PathParam( "fileName" ) String fileName,
+                            @PathParam( "override" ) String override ) {
+    boolean overwrite = override != null && override.toLowerCase().equals( "true" );
+    if ( repositoryBrowserController.saveFile( path, name, fileName, overwrite ) ) {
       return Response.ok().build();
     }
+    return Response.noContent().build();
+  }
 
+  @GET
+  @Path( "/saveFile/{path}/{name}/{override}" )
+  public Response saveFile( @PathParam( "path" ) String path, @PathParam( "name" ) String name,
+                            @PathParam( "override" ) String override ) {
+    boolean overwrite = override != null && override.toLowerCase().equals( "true" );
+    if ( repositoryBrowserController.saveFile( path, name, "", overwrite ) ) {
+      return Response.ok().build();
+    }
+    return Response.noContent().build();
+  }
+
+  @GET
+  @Path( "/checkForSecurityOrDupeIssues/{path}/{name}/{fileName}/{override}" )
+  public Response checkForSecurityOrDupeIssues( @PathParam( "path" ) String path, @PathParam( "name" ) String name,
+                                                @PathParam( "fileName" ) String fileName,
+                                                @PathParam( "override" ) String override ) {
+    boolean overwrite = override != null && override.toLowerCase().equals( "true" );
+    if ( repositoryBrowserController.checkForSecurityOrDupeIssues( path, name, fileName, overwrite ) ) {
+      return Response.ok().build();
+    }
+    return Response.noContent().build();
+  }
+
+  @GET
+  @Path( "/checkForSecurityOrDupeIssues/{path}/{name}/{override}" )
+  public Response checkForSecurityOrDupeIssues( @PathParam( "path" ) String path, @PathParam( "name" ) String name,
+                                                @PathParam( "override" ) String override ) {
+    boolean overwrite = override != null && override.toLowerCase().equals( "true" );
+    if ( repositoryBrowserController.checkForSecurityOrDupeIssues( path, name, "", overwrite ) ) {
+      return Response.ok().build();
+    }
     return Response.noContent().build();
   }
 
@@ -126,6 +181,13 @@ public class RepositoryBrowserEndpoint {
     }
 
     return Response.notModified().build();
+  }
+
+  @GET
+  @Path( "/search/{path}/{filter}" )
+  @Produces( { MediaType.APPLICATION_JSON } )
+  public Response search( @PathParam( "path" ) String path, @PathParam( "filter" ) String filter ) {
+    return Response.ok( repositoryBrowserController.search( path, filter ) ).build();
   }
 
   @POST

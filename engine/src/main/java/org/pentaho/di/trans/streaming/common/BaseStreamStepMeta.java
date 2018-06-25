@@ -24,19 +24,15 @@ package org.pentaho.di.trans.streaming.common;
 
 import org.pentaho.di.core.CheckResult;
 import org.pentaho.di.core.CheckResultInterface;
-import org.pentaho.di.core.RowMetaAndData;
-import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.exception.KettleStepException;
 import org.pentaho.di.core.injection.Injection;
-import org.pentaho.di.core.injection.bean.BeanInjectionInfo;
-import org.pentaho.di.core.injection.bean.BeanInjector;
+import org.pentaho.di.core.row.RowMeta;
 import org.pentaho.di.core.row.RowMetaInterface;
-import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.core.util.StringUtil;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.variables.VariableSpace;
-import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.i18n.BaseMessages;
-import org.pentaho.di.repository.ObjectId;
 import org.pentaho.di.repository.Repository;
 import org.pentaho.di.resource.ResourceEntry;
 import org.pentaho.di.resource.ResourceReference;
@@ -44,13 +40,11 @@ import org.pentaho.di.trans.StepWithMappingMeta;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepMeta;
 import org.pentaho.di.trans.step.StepMetaInterface;
+import org.pentaho.di.trans.steps.transexecutor.TransExecutorMeta;
 import org.pentaho.metastore.api.IMetaStore;
-import org.w3c.dom.Node;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements StepMetaInterface {
 
@@ -59,7 +53,9 @@ public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements 
   public static final String TRANSFORMATION_PATH = "TRANSFORMATION_PATH";
   public static final String NUM_MESSAGES = "NUM_MESSAGES";
   public static final String DURATION = "DURATION";
-  @Injection ( name = TRANSFORMATION_PATH )  // pull this stuff up to common
+  public static final String SUB_STEP = "SUB_STEP";
+
+  @Injection ( name = TRANSFORMATION_PATH )
   protected String transformationPath = "";
 
   @Injection ( name = NUM_MESSAGES )
@@ -68,66 +64,22 @@ public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements 
   @Injection ( name = DURATION )
   protected String batchDuration = "1000";
 
-  @Override public String getXML() {
-    BeanInjectionInfo info = new BeanInjectionInfo( this.getClass() );
-    BeanInjector injector = new BeanInjector( info );
-    Map<String, BeanInjectionInfo.Property> properties = info.getProperties();
-    return properties.entrySet().stream()
-      .map( entry -> {
-        try {
-          Object obj = injector.getObject( this, entry.getKey() );
-          if ( entry.getValue().pathArraysCount == 1 ) {
-            @SuppressWarnings( "unchecked" )
-            List<String> list = (List<String>) obj;
-            return list.stream()
-              .map( v -> XMLHandler.addTagValue( entry.getKey(), v ) )
-              .collect( Collectors.joining() );
-          }
-          return XMLHandler.addTagValue( entry.getKey(), obj.toString() );
-        } catch ( Exception e ) {
-          throw new RuntimeException( e );
-        }
-      } ).collect( Collectors.joining() );
+  @Injection ( name = SUB_STEP )
+  protected String subStep = "";
+
+  MappingMetaRetriever mappingMetaRetriever = TransExecutorMeta::loadMappingMeta;
+
+  @FunctionalInterface interface MappingMetaRetriever {
+    TransMeta get( StepWithMappingMeta mappingMeta, Repository rep, IMetaStore metaStore, VariableSpace space )
+      throws KettleException;
   }
 
-  @Override public void loadXML(
-    Node stepnode, List<DatabaseMeta> databases, IMetaStore metaStore ) {
-
-    BeanInjectionInfo info = new BeanInjectionInfo( this.getClass() );
-    BeanInjector injector = new BeanInjector( info );
-    info.getProperties().keySet().forEach( name -> {
-      try {
-        injector.setProperty(
-          this, name, nodesToRowMetaAndData( XMLHandler.getNodes( stepnode, name ) ), name );
-      } catch ( KettleException e ) {
-        throw new RuntimeException( e );
-      }
-    } );
+  public String getSubStep() {
+    return subStep == null ? "" : subStep;
   }
 
-  private List<RowMetaAndData> nodesToRowMetaAndData( List<Node> nodes ) {
-    return nodes.stream()
-      .map( node -> {
-        RowMetaAndData rmad = new RowMetaAndData();
-        rmad.addValue( new ValueMetaString( node.getNodeName() ), node.getTextContent() );
-        return rmad;
-      } )
-      .collect( Collectors.toList() );
-  }
-
-  @Override public void readRep( Repository rep, IMetaStore metaStore, ObjectId id_step, List<DatabaseMeta> databases )
-    throws KettleException {
-    setTransformationPath( rep.getStepAttributeString( id_step, TRANSFORMATION_PATH ) );
-    setFileName( rep.getStepAttributeString( id_step, TRANSFORMATION_PATH ) );
-    setBatchSize( rep.getStepAttributeString( id_step, BaseStreamStepMeta.NUM_MESSAGES ) );
-    setBatchDuration( rep.getStepAttributeString( id_step, BaseStreamStepMeta.DURATION ) );
-  }
-
-  @Override public void saveRep( Repository rep, IMetaStore metaStore, ObjectId transId, ObjectId stepId )
-    throws KettleException {
-    rep.saveStepAttribute( transId, stepId, TRANSFORMATION_PATH, transformationPath );
-    rep.saveStepAttribute( transId, stepId, BaseStreamStepMeta.NUM_MESSAGES, batchSize );
-    rep.saveStepAttribute( transId, stepId, BaseStreamStepMeta.DURATION, batchDuration );
+  public void setSubStep( String subStep ) {
+    this.subStep = subStep;
   }
 
   public void setTransformationPath( String transformationPath ) {
@@ -157,6 +109,11 @@ public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements 
 
   public String getBatchDuration() {
     return batchDuration;
+  }
+
+  @Override public void replaceFileName( String fileName ) {
+    super.replaceFileName( fileName );
+    setTransformationPath( fileName );
   }
 
   public void check( List<CheckResultInterface> remarks, TransMeta transMeta,
@@ -193,7 +150,7 @@ public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements 
 
   @Override
   public List<ResourceReference> getResourceDependencies( TransMeta transMeta, StepMeta stepInfo ) {
-    List<ResourceReference> references = new ArrayList<ResourceReference>( 5 );
+    List<ResourceReference> references = new ArrayList<>( 5 );
     String realFilename = transMeta.environmentSubstitute( transformationPath );
     ResourceReference reference = new ResourceReference( stepInfo );
     references.add( reference );
@@ -220,5 +177,33 @@ public abstract class BaseStreamStepMeta extends StepWithMappingMeta implements 
   @Override public Object loadReferencedObject( int index, Repository rep, IMetaStore metaStore, VariableSpace space )
     throws KettleException {
     return loadMappingMeta( this, rep, metaStore, space );
+  }
+
+  public abstract RowMeta getRowMeta( String origin, VariableSpace space ) throws KettleStepException;
+
+  @Override public void getFields( RowMetaInterface rowMeta, String origin, RowMetaInterface[] info, StepMeta nextStep,
+                                   VariableSpace space, Repository repository, IMetaStore metaStore )
+    throws KettleStepException {
+    try {
+      TransMeta transMeta = mappingMetaRetriever.get( this, repository, metaStore, space );
+      if ( !StringUtil.isEmpty( getSubStep() ) ) {
+        String realSubStepName = space.environmentSubstitute( getSubStep() );
+        rowMeta.addRowMeta( transMeta.getPrevStepFields( realSubStepName ) );
+        transMeta.getSteps().stream().filter( stepMeta -> stepMeta.getName().equals( realSubStepName ) )
+          .findFirst()
+          .ifPresent( stepMeta ->
+          {
+            try {
+              stepMeta.getStepMetaInterface()
+                .getFields( rowMeta, origin, info, nextStep, space, repository, metaStore );
+            } catch ( KettleStepException e ) {
+              throw new RuntimeException( e );
+            }
+          } );
+      }
+    } catch ( KettleException e ) {
+      getLog().logDebug( "could not get fields, probable AEL" );
+      rowMeta.addRowMeta( getRowMeta( origin, space ) );
+    }
   }
 }

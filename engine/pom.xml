@@ -6,7 +6,7 @@
 
   <groupId>pentaho-kettle</groupId>
   <artifactId>kettle-engine</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>PDI Engine</name>
@@ -14,32 +14,32 @@
   <parent>
     <groupId>org.pentaho.di</groupId>
     <artifactId>pdi</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <properties>
     <!-- Test running configuration -->
-    <maven-surefire-plugin.reuseForks>false</maven-surefire-plugin.reuseForks>
+    <maven-surefire-plugin.reuseForks>true</maven-surefire-plugin.reuseForks>
     <maven-failsafe-plugin.reuseForks>false</maven-failsafe-plugin.reuseForks>
 
     <!-- Pentaho dependencies -->
-    <pentaho-reporting.version>8.1.0.0-SNAPSHOT</pentaho-reporting.version>
-    <pentaho-registry.version>8.1.0.0-SNAPSHOT</pentaho-registry.version>
-    <pentaho-connections.version>8.1.0.0-SNAPSHOT</pentaho-connections.version>
-    <mondrian.version>8.1.0.0-SNAPSHOT</mondrian.version>
+    <pentaho-reporting.version>9.0.0.0-SNAPSHOT</pentaho-reporting.version>
+    <pentaho-registry.version>9.0.0.0-SNAPSHOT</pentaho-registry.version>
+    <pentaho-connections.version>9.0.0.0-SNAPSHOT</pentaho-connections.version>
+    <mondrian.version>9.0.0.0-SNAPSHOT</mondrian.version>
 
     <!-- Third-party dependencies -->
     <antlr-complete.version>3.5.2</antlr-complete.version>
     <commons-validator.version>1.3.1</commons-validator.version>
     <edtftpj.version>2.1.0</edtftpj.version>
     <jsendnsca.version>2.0.1</jsendnsca.version>
-    <jackcess.version>1.2.6</jackcess.version>
     <feed4j.version>1.0</feed4j.version>
     <ftp4che.version>0.7.1</ftp4che.version>
     <georss-rome.version>0.9.8</georss-rome.version>
     <infobright-core.version>3.4</infobright-core.version>
     <ini4j.version>0.5.1</ini4j.version>
-    <janino.version>2.5.16</janino.version>
+    <!-- https://jira.pentaho.com/browse/PDI-44134 update janino to latest -->
+    <janino.version>3.0.8</janino.version>
     <javadbf.version>20081125</javadbf.version>
     <jcommon.version>1.0.16</jcommon.version>
     <json-simple.version>1.1</json-simple.version>
@@ -52,8 +52,7 @@
     <ldapjdk.version>20000524</ldapjdk.version>
     <monetdb-jdbc.version>2.8</monetdb-jdbc.version>
     <odfdom-java.version>0.8.6</odfdom-java.version>
-    <poi.version>3.15</poi.version>
-    <poi-ooxml.version>3.15</poi-ooxml.version>
+    <poi.version>3.17</poi.version>
     <commons-collections4.version>4.1</commons-collections4.version>
     <xmlbeans.version>2.6.0</xmlbeans.version>
     <postgresql.version>42.1.1</postgresql.version>
@@ -71,8 +70,7 @@
     <wsdl4j.version>1.6.2</wsdl4j.version>
     <wsdl4j-qname.version>1.6.1</wsdl4j-qname.version>
     <ehcache-core.version>2.5.1</ehcache-core.version>
-    <jackson-core-asl.version>1.9.2</jackson-core-asl.version>
-    <jackson-mapper-asl.version>1.9.2</jackson-mapper-asl.version>
+    <jackson.version>2.9.4</jackson.version>
     <jackson-jaxrs.version>1.9.2</jackson-jaxrs.version>
     <hibernate-core.version>3.6.9.Final</hibernate-core.version>
     <hibernate-c3p0.version>3.6.9.Final</hibernate-c3p0.version>
@@ -96,6 +94,7 @@
     <oro.version>2.0.8</oro.version>
     <javax.websocket-api.version>1.1</javax.websocket-api.version>
     <rxjava.version>2.0.4</rxjava.version>
+    <xmlunit.version>1.5</xmlunit.version>
   </properties>
 
   <dependencies>
@@ -113,7 +112,7 @@
 
     <!-- Pentaho dependencies -->
     <dependency>
-      <groupId>pentaho</groupId>
+      <groupId>org.pentaho</groupId>
       <artifactId>pentaho-registry</artifactId>
       <version>${pentaho-registry.version}</version>
     </dependency>
@@ -221,17 +220,6 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>com.healthmarketscience.jackcess</groupId>
-      <artifactId>jackcess</artifactId>
-      <version>${jackcess.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>feed4j</groupId>
       <artifactId>feed4j</artifactId>
       <version>${feed4j.version}</version>
@@ -287,7 +275,18 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>janino</groupId>
+      <groupId>org.codehaus.janino</groupId>
+      <artifactId>commons-compiler</artifactId>
+      <version>${janino.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.janino</groupId>
       <artifactId>janino</artifactId>
       <version>${janino.version}</version>
       <exclusions>
@@ -443,7 +442,18 @@
     <dependency>
       <groupId>org.apache.poi</groupId>
       <artifactId>poi-ooxml</artifactId>
-      <version>${poi-ooxml.version}</version>
+      <version>${poi.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>*</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml-schemas</artifactId>
+      <version>${poi.version}</version>
       <exclusions>
         <exclusion>
           <groupId>*</groupId>
@@ -639,39 +649,44 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-core-asl</artifactId>
-      <version>${jackson-core-asl.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-core</artifactId>
+      <version>${jackson.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
           <artifactId>*</artifactId>
+          <groupId>*</groupId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-mapper-asl</artifactId>
-      <version>${jackson-mapper-asl.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-annotations</artifactId>
+      <version>${jackson.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
           <artifactId>*</artifactId>
+          <groupId>*</groupId>
         </exclusion>
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-jaxrs</artifactId>
-      <version>${jackson-jaxrs.version}</version>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
       <exclusions>
         <exclusion>
-          <groupId>*</groupId>
           <artifactId>*</artifactId>
+          <groupId>*</groupId>
         </exclusion>
       </exclusions>
-    </dependency>
+    </dependency> 
     <dependency>
+      <groupId>com.fasterxml.jackson.jaxrs</groupId>
+      <artifactId>jackson-jaxrs-json-provider</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+	<dependency>
       <groupId>org.hibernate</groupId>
       <artifactId>hibernate-core</artifactId>
       <version>${hibernate-core.version}</version>
@@ -877,6 +892,13 @@
 
     <!-- Test dependencies -->
     <dependency>
+      <groupId>pentaho-kettle</groupId>
+      <artifactId>kettle-core</artifactId>
+      <version>${project.version}</version>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
       <scope>test</scope>
@@ -926,6 +948,12 @@
           <artifactId>*</artifactId>
         </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>xmlunit</groupId>
+      <artifactId>xmlunit</artifactId>
+      <version>${xmlunit.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

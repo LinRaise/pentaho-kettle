@@ -1,5 +1,5 @@
 /*!
- * Copyright 2010 - 2017 Hitachi Vantara.  All rights reserved.
+ * Copyright 2010 - 2018 Hitachi Vantara.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,25 +16,21 @@
  */
 package org.pentaho.di.repository.pur;
 
-import java.net.URI;
-import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-
-import javax.xml.ws.WebServiceException;
-import javax.ws.rs.core.MediaType;
-
-import com.sun.jersey.api.client.Client;
-import com.sun.jersey.api.client.ClientResponse;
-import com.sun.jersey.api.client.WebResource;
-import com.sun.jersey.api.client.config.ClientConfig;
-import com.sun.jersey.api.client.config.DefaultClientConfig;
-import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
+import com.pentaho.pdi.ws.IRepositorySyncWebService;
+import com.pentaho.pdi.ws.RepositorySyncException;
+import com.sun.xml.ws.client.ClientTransportException;
 import org.apache.commons.lang.BooleanUtils;
+import org.apache.http.HttpResponse;
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.BasicCredentialsProvider;
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.util.EntityUtils;
 import org.pentaho.di.core.encryption.Encr;
 import org.pentaho.di.core.exception.KettleException;
-import org.pentaho.di.core.exception.KettleSecurityException;
 import org.pentaho.di.core.logging.LogChannel;
 import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.util.ExecutorUtil;
@@ -57,9 +53,11 @@ import org.pentaho.platform.engine.core.system.PentahoSystem;
 import org.pentaho.platform.repository2.unified.webservices.jaxws.IUnifiedRepositoryJaxwsWebService;
 import org.pentaho.platform.repository2.unified.webservices.jaxws.UnifiedRepositoryToWebServiceAdapter;
 
-import com.pentaho.pdi.ws.IRepositorySyncWebService;
-import com.pentaho.pdi.ws.RepositorySyncException;
-import com.sun.xml.ws.client.ClientTransportException;
+import javax.xml.ws.WebServiceException;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 public class PurRepositoryConnector implements IRepositoryConnector {
   private static final String SINGLE_DI_SERVER_INSTANCE = "singleDiServerInstance";
@@ -73,7 +71,7 @@ public class PurRepositoryConnector implements IRepositoryConnector {
 
   public PurRepositoryConnector( PurRepository purRepository, PurRepositoryMeta repositoryMeta, RootRef rootRef ) {
     log = new LogChannel( this.getClass().getSimpleName() );
-    if ( purRepository != null & purRepository.getLog() != null ) {
+    if ( purRepository != null && purRepository.getLog() != null ) {
       log.setLogLevel( purRepository.getLog().getLogLevel() );
     }
     this.purRepository = purRepository;
@@ -92,7 +90,7 @@ public class PurRepositoryConnector implements IRepositoryConnector {
   }
 
   public synchronized RepositoryConnectResult connect( final String username, final String password )
-    throws KettleException, KettleSecurityException {
+    throws KettleException {
     if ( serviceManager != null ) {
       disconnect();
     }
@@ -121,7 +119,7 @@ public class PurRepositoryConnector implements IRepositoryConnector {
           result.setUnifiedRepository( PentahoSystem.get( IUnifiedRepository.class ) );
           if ( result.getUnifiedRepository() != null ) {
             if ( log.isDebug() ) {
-              log.logDebug( "begin connectInProcess()" );
+              log.logDebug( BaseMessages.getString( PKG, "PurRepositoryConnector.ConnectInProgress.Begin" ) );
             }
             String name = PentahoSessionHolder.getSession().getName();
             user1 = new EEUserInfo();
@@ -132,7 +130,8 @@ public class PurRepositoryConnector implements IRepositoryConnector {
             result.setSuccess( true );
 
             if ( log.isDebug() ) {
-              log.logDebug( "connected in process as '" + name + "' pur repository = " + result.getUnifiedRepository() );
+              log.logDebug( BaseMessages.getString(
+                      PKG, "PurRepositoryConnector.ConnectInProgress", name, result.getUnifiedRepository() ) );
             }
 
             // for now, there is no need to support the security manager
@@ -239,26 +238,22 @@ public class PurRepositoryConnector implements IRepositoryConnector {
             if ( log.isBasic() ) {
               log.logBasic( BaseMessages.getString( PKG, "PurRepositoryConnector.SessionService.Start" ) );
             }
-            ClientConfig clientConfig = new DefaultClientConfig();
-            Client client = Client.create( clientConfig );
-            client.addFilter( new HTTPBasicAuthFilter( username, password ) );
-            WebResource resource =
-              client.resource( new URI( repositoryMeta.getRepositoryLocation().getUrl() + "/api/session/userName" ) );
-            WebResource.Builder resourceBuilder = resource.getRequestBuilder();
-            resourceBuilder = resourceBuilder.accept( MediaType.TEXT_PLAIN );
-            com.sun.jersey.api.client.ClientResponse response;
-            response = resourceBuilder.method( "GET", ClientResponse.class );
+            CredentialsProvider provider = new BasicCredentialsProvider();
+            UsernamePasswordCredentials credentials = new UsernamePasswordCredentials( username, password );
+            provider.setCredentials( AuthScope.ANY, credentials );
+            HttpClient client = HttpClientBuilder.create().setDefaultCredentialsProvider( provider ).build();
+            HttpResponse response = client
+              .execute( new HttpGet( repositoryMeta.getRepositoryLocation().getUrl() + "/api/session/userName" ) );
             if ( log.isBasic() ) {
               log.logBasic( BaseMessages.getString( PKG, "PurRepositoryConnector.SessionService.Sync" ) ); //$NON-NLS-1$
             }
-            return response.getEntity( String.class );
+            return EntityUtils.toString( response.getEntity() );
           } catch ( Exception e ) {
             if ( log.isError() ) {
-              log.logError( "Unable get userName", e );
+              log.logError( BaseMessages.getString( PKG, "PurRepositoryConnector.Error.EnableToGetUser" ), e );
             }
             return null;
           }
-
         }
       } );
 

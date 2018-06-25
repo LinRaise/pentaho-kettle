@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -37,17 +37,24 @@ import org.ftp4che.FTPConnection;
 import org.ftp4che.FTPConnectionFactory;
 import org.ftp4che.event.FTPEvent;
 import org.ftp4che.event.FTPListener;
+import org.ftp4che.exception.ConfigurationException;
 import org.ftp4che.util.ftpfile.FTPFile;
 import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.logging.LogChannel;
+import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
 import org.pentaho.di.core.vfs.KettleVFS;
 import org.pentaho.di.i18n.BaseMessages;
+import org.pentaho.di.job.entries.ftpsget.ftp4che.SecureDataFTPConnection;
+
+import com.google.common.annotations.VisibleForTesting;
 
 public class FTPSConnection implements FTPListener {
 
   private static Class<?> PKG = JobEntryFTPSGet.class; // for i18n purposes, needed by Translator2!!
+  private LogChannelInterface logger;
 
   public static final String HOME_FOLDER = "/";
   public static final String COMMAND_SUCCESSUL = "COMMAND SUCCESSFUL";
@@ -108,6 +115,7 @@ public class FTPSConnection implements FTPListener {
     this.connectionType = connectionType;
     this.passiveMode = false;
     this.nameSpace = nameSpace;
+    this.logger = new LogChannel( this );
   }
 
   /**
@@ -165,12 +173,23 @@ public class FTPSConnection implements FTPListener {
       connection =
         FTPConnectionFactory.getInstance( getProperties(
           hostName, portNumber, userName, passWord, connectionType, timeOut, passiveMode ) );
+      if ( connection.getConnectionType() == FTPConnection.IMPLICIT_SSL_WITH_CRYPTED_DATA_FTP_CONNECTION
+          || connection.getConnectionType() == FTPConnection.IMPLICIT_TLS_WITH_CRYPTED_DATA_FTP_CONNECTION ) {
+        // need to upgrade to our custom connection to force crypted data channel
+        connection = getSecureDataFTPConnection( connection, passWord, timeOut );
+      }
       connection.addFTPStatusListener( this );
       connection.connect();
     } catch ( Exception e ) {
       connection = null;
       throw new KettleException( BaseMessages.getString( PKG, "JobFTPS.Error.Connecting", hostName ), e );
     }
+  }
+
+  @VisibleForTesting
+  protected FTPConnection getSecureDataFTPConnection( FTPConnection connection, String password, int timeout )
+    throws ConfigurationException {
+    return new SecureDataFTPConnection( connection, password, timeout );
   }
 
   private Properties getProperties( String hostname, int port, String username, String password,
@@ -466,7 +485,8 @@ public class FTPSConnection implements FTPListener {
         try {
           file.close();
         } catch ( Exception e ) {
-          // Ignore close errors
+           //we do not able to close file will log it
+          logger.logDetailed( "Unable to close file file", e );
         }
       }
     }

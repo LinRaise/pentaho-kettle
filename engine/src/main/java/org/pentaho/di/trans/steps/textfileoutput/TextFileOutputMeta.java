@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -84,10 +84,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
   @Injection( name = "FILENAME" )
   private String fileName;
 
-  /** Whether to treat this as a command to be executed and piped into */
-  @Injection( name = "RUN_AS_COMMAND" )
-  private boolean fileAsCommand;
-
   /** Whether to push the output into the output of a servlet with the executeTrans Carte/DI-Server servlet */
   @Injection( name = "PASS_TO_SERVLET" )
   private boolean servletOutput;
@@ -140,7 +136,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
 
   /** if this value is larger then 0, the text file is split up into parts of this number of lines */
   @Injection( name = "SPLIT_EVERY" )
-  private int splitEvery;
+  private String splitEveryRows;
 
   /** Flag to indicate the we want to append to the end of an existing file (if it exists) */
   @Injection( name = "APPEND" )
@@ -212,21 +208,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
 
   public TextFileOutputMeta() {
     super(); // allocate BaseStepMeta
-  }
-
-  /**
-   * @return FileAsCommand
-   */
-  public boolean isFileAsCommand() {
-    return fileAsCommand;
-  }
-
-  /**
-   * @param fileAsCommand
-   *          The fileAsCommand to set
-   */
-  public void setFileAsCommand( boolean fileAsCommand ) {
-    this.fileAsCommand = fileAsCommand;
   }
 
   public boolean isServletOutput() {
@@ -510,10 +491,33 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
   }
 
   /**
+   * @deprecated use {@link #getSplitEvery(VariableSpace)} or {@link #getSplitEveryRows()}
    * @return Returns the splitEvery.
    */
   public int getSplitEvery() {
-    return splitEvery;
+    return Const.toInt( splitEveryRows, 0 );
+  }
+
+  /**
+   * @param varSpace for variable substitution
+   * @return At how many rows to split into another file.
+   */
+  public int getSplitEvery( VariableSpace varSpace ) {
+    return Const.toInt( varSpace.environmentSubstitute( splitEveryRows ), 0 );
+  }
+
+  /**
+   * @return At how many rows to split into a new file.
+   */
+  public String getSplitEveryRows() {
+    return splitEveryRows;
+  }
+
+  /**
+   * @param value At how many rows to split into a new file.
+   */
+  public void setSplitEveryRows( String value ) {
+    splitEveryRows = value;
   }
 
   /**
@@ -524,11 +528,12 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
   }
 
   /**
+   * @deprecated use {@link #setSplitEveryRows(String)}
    * @param splitEvery
    *          The splitEvery to set.
    */
   public void setSplitEvery( int splitEvery ) {
-    this.splitEvery = splitEvery;
+    splitEveryRows = Integer.toString( splitEvery );
   }
 
   /**
@@ -690,7 +695,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     return retval;
   }
 
-  private void readData( Node stepnode, IMetaStore metastore ) throws KettleXMLException {
+  protected void readData( Node stepnode, IMetaStore metastore ) throws KettleXMLException {
     try {
       separator = XMLHandler.getTagValue( stepnode, "separator" );
       if ( separator == null ) {
@@ -736,7 +741,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
       }
 
       fileName = loadSource( stepnode, metastore );
-      fileAsCommand = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "file", "is_command" ) );
       servletOutput = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "file", "servlet_output" ) );
       doNotOpenNewFileInit =
           "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "file", "do_not_open_new_file_init" ) );
@@ -758,7 +762,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
 
       padded = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "file", "pad" ) );
       fastDump = "Y".equalsIgnoreCase( XMLHandler.getTagValue( stepnode, "file", "fast_dump" ) );
-      splitEvery = Const.toInt( XMLHandler.getTagValue( stepnode, "file", "splitevery" ), 0 );
+      splitEveryRows = XMLHandler.getTagValue( stepnode, "file", "splitevery" );
 
       newline = getNewLine( fileFormat );
 
@@ -826,7 +830,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     fileFormat = "DOS";
     fileCompression = fileCompressionTypeCodes[FILE_COMPRESSION_TYPE_NONE];
     fileName = "file";
-    fileAsCommand = false;
     servletOutput = false;
     doNotOpenNewFileInit = false;
     extension = "txt";
@@ -837,7 +840,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     padded = false;
     fastDump = false;
     addToResultFilenames = true;
-    splitEvery = 0;
 
     newline = getNewLine( fileFormat );
 
@@ -874,7 +876,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
       parts = 3;
     }
 
-    if ( splitEvery != 0 ) {
+    if ( !Utils.isEmpty( splitEveryRows ) ) {
       splits = 3;
     }
 
@@ -913,10 +915,6 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     String retval = space.environmentSubstitute( filename );
     String realextension = space.environmentSubstitute( extension );
 
-    if ( meta.isFileAsCommand() ) {
-      return retval;
-    }
-
     Date now = new Date();
 
     if ( meta.isSpecifyingFormat() && !Utils.isEmpty( meta.getDateTimeFormat() ) ) {
@@ -941,7 +939,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     if ( meta.isPartNrInFilename() ) {
       retval += "_" + partnr;
     }
-    if ( meta.getSplitEvery() > 0 ) {
+    if ( meta.getSplitEvery( space ) > 0 ) {
       retval += "_" + splitnr;
     }
 
@@ -1019,26 +1017,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     retval.append( "    " + XMLHandler.addTagValue( "fileNameField", fileNameField ) );
     retval.append( "    " + XMLHandler.addTagValue( "create_parent_folder", createparentfolder ) );
     retval.append( "    <file>" ).append( Const.CR );
-    if ( parentStepMeta != null && parentStepMeta.getParentTransMeta() != null ) {
-      parentStepMeta.getParentTransMeta().getNamedClusterEmbedManager().registerUrl( fileName );
-    }
-    saveSource( retval, fileName );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "is_command", fileAsCommand ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "servlet_output", servletOutput ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "do_not_open_new_file_init", doNotOpenNewFileInit ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "extention", extension ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "append", fileAppended ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "split", stepNrInFilename ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "haspartno", partNrInFilename ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "add_date", dateInFilename ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "add_time", timeInFilename ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "SpecifyFormat", specifyingFormat ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "date_time_format", dateTimeFormat ) );
-
-    retval.append( "      " ).append( XMLHandler.addTagValue( "add_to_result_filenames", addToResultFilenames ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "pad", padded ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "fast_dump", fastDump ) );
-    retval.append( "      " ).append( XMLHandler.addTagValue( "splitevery", splitEvery ) );
+    saveFileOptions( retval );
     retval.append( "    </file>" ).append( Const.CR );
 
     retval.append( "    <fields>" ).append( Const.CR );
@@ -1063,6 +1042,28 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
     retval.append( "    </fields>" ).append( Const.CR );
 
     return retval.toString();
+  }
+
+  protected void saveFileOptions( StringBuilder retval ) {
+    if ( parentStepMeta != null && parentStepMeta.getParentTransMeta() != null ) {
+      parentStepMeta.getParentTransMeta().getNamedClusterEmbedManager().registerUrl( fileName );
+    }
+    saveSource( retval, fileName );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "servlet_output", servletOutput ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "do_not_open_new_file_init", doNotOpenNewFileInit ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "extention", extension ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "append", fileAppended ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "split", stepNrInFilename ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "haspartno", partNrInFilename ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "add_date", dateInFilename ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "add_time", timeInFilename ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "SpecifyFormat", specifyingFormat ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "date_time_format", dateTimeFormat ) );
+
+    retval.append( "      " ).append( XMLHandler.addTagValue( "add_to_result_filenames", addToResultFilenames ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "pad", padded ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "fast_dump", fastDump ) );
+    retval.append( "      " ).append( XMLHandler.addTagValue( "splitevery", splitEveryRows ) );
   }
 
   @Override
@@ -1090,12 +1091,20 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
       encoding = rep.getStepAttributeString( id_step, "encoding" );
 
       fileName = loadSourceRep( rep, id_step, metaStore );
-      fileAsCommand = rep.getStepAttributeBoolean( id_step, "file_is_command" );
       servletOutput = rep.getStepAttributeBoolean( id_step, "file_servlet_output" );
       doNotOpenNewFileInit = rep.getStepAttributeBoolean( id_step, "do_not_open_new_file_init" );
       extension = rep.getStepAttributeString( id_step, "file_extention" );
       fileAppended = rep.getStepAttributeBoolean( id_step, "file_append" );
-      splitEvery = (int) rep.getStepAttributeInteger( id_step, "file_split" );
+
+      splitEveryRows = rep.getStepAttributeString( id_step, "file_split_rows" );
+      if ( Utils.isEmpty( splitEveryRows ) ) {
+        // test for legacy
+        long splitEvery = rep.getStepAttributeInteger( id_step, "file_split" );
+        if ( splitEvery > 0 ) {
+          splitEveryRows = Long.toString( splitEvery );
+        }
+      }
+
       stepNrInFilename = rep.getStepAttributeBoolean( id_step, "file_add_stepnr" );
       partNrInFilename = rep.getStepAttributeBoolean( id_step, "file_add_partnr" );
       dateInFilename = rep.getStepAttributeBoolean( id_step, "file_add_date" );
@@ -1155,12 +1164,11 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
       rep.saveStepAttribute( id_transformation, id_step, "compression", fileCompression );
       rep.saveStepAttribute( id_transformation, id_step, "encoding", encoding );
       saveSourceRep( rep, id_transformation, id_step, fileName );
-      rep.saveStepAttribute( id_transformation, id_step, "file_is_command", fileAsCommand );
       rep.saveStepAttribute( id_transformation, id_step, "file_servlet_output", servletOutput );
       rep.saveStepAttribute( id_transformation, id_step, "do_not_open_new_file_init", doNotOpenNewFileInit );
       rep.saveStepAttribute( id_transformation, id_step, "file_extention", extension );
       rep.saveStepAttribute( id_transformation, id_step, "file_append", fileAppended );
-      rep.saveStepAttribute( id_transformation, id_step, "file_split", splitEvery );
+      rep.saveStepAttribute( id_transformation, id_step, "file_split_rows", splitEveryRows );
       rep.saveStepAttribute( id_transformation, id_step, "file_add_stepnr", stepNrInFilename );
       rep.saveStepAttribute( id_transformation, id_step, "file_add_partnr", partNrInFilename );
       rep.saveStepAttribute( id_transformation, id_step, "file_add_date", dateInFilename );
@@ -1337,7 +1345,7 @@ public class TextFileOutputMeta extends BaseStepMeta implements StepMetaInterfac
   public void resolve() {
     if ( fileName != null && !fileName.isEmpty() ) {
       try {
-        FileObject fileObject = KettleVFS.getFileObject( fileName );
+        FileObject fileObject = KettleVFS.getFileObject( getParentStepMeta().getParentTransMeta().environmentSubstitute( fileName ) );
         if ( AliasedFileObject.isAliasedFile( fileObject ) ) {
           fileName = ( (AliasedFileObject) fileObject ).getOriginalURIString();
         }

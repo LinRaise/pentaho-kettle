@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.commons.vfs2.FileObject;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -245,6 +244,8 @@ public class XMLInputStreamTest {
         new XMLInputStream( stepMockHelper.stepMeta, stepMockHelper.stepDataInterface, 0, stepMockHelper.transMeta,
             stepMockHelper.trans );
 
+    RowMetaInterface inputRowMeta = new RowMeta(  );
+    xmlInputStream.setInputRowMeta( inputRowMeta );
     xmlInputStream.init( xmlInputStreamMeta, xmlInputStreamData );
     xmlInputStream.addRowListener( rl );
     boolean haveRowsToRead;
@@ -272,7 +273,7 @@ public class XMLInputStreamTest {
             stepMockHelper.trans );
     xmlInputStream.setInputRowMeta( rm );
     xmlInputStream.getInputRowMeta().addValueMeta( ms );
-    xmlInputStream.getInputRowSets().add( rs );
+    xmlInputStream.addRowSetToInputRowSets( rs );
     xmlInputStream.setOutputRowSets( new ArrayList<>() );
 
     xmlInputStream.init( xmlInputStreamMeta, xmlInputStreamData );
@@ -306,7 +307,7 @@ public class XMLInputStreamTest {
     assertEquals( INCORRECT_XML_DATA_TYPE_DESCRIPTION_MESSAGE, "END_ELEMENT", rl.getWritten().get(
         expectedRowNum )[typeDescriptionPos + 1] );
     assertEquals( INCORRECT_XML_PATH_MESSAGE, "/ProductGroup", rl.getWritten().get( expectedRowNum )[pathPos + 1] );
-    assertEquals( INCORRECT_XML_DATA_NAME_MESSAGE, "ProductGroup", rl.getWritten().get( expectedRowNum )[dataNamePos +1] );
+    assertEquals( INCORRECT_XML_DATA_NAME_MESSAGE, "ProductGroup", rl.getWritten().get( expectedRowNum )[dataNamePos + 1] );
   }
 
   @Test
@@ -319,12 +320,12 @@ public class XMLInputStreamTest {
     testCorrectFileSelected( "filename", 1 );
   }
 
-  @Test(expected = KettleException.class)
+  @Test( expected = KettleException.class )
   public void testNotValidFilePathAndFileField() throws Exception {
     testCorrectFileSelected( "notPathNorValidFieldName", 0 );
   }
 
-  @Test(expected = KettleException.class)
+  @Test( expected = KettleException.class )
   public void testEmptyFileField() throws Exception {
     testCorrectFileSelected( StringUtils.EMPTY, 0 );
   }
@@ -348,7 +349,7 @@ public class XMLInputStreamTest {
                     stepMockHelper.trans );
     xmlInputStream.setInputRowMeta( rm );
     xmlInputStream.getInputRowMeta().addValueMeta( ms );
-    xmlInputStream.getInputRowSets().add( rs );
+    xmlInputStream.addRowSetToInputRowSets( rs );
     xmlInputStream.setOutputRowSets( new ArrayList<>() );
 
     xmlInputStream.init( xmlInputStreamMeta, xmlInputStreamData );

@@ -1,43 +1,27 @@
-//CHECKSTYLE:FileLength:OFF
-/*!
-* Copyright 2010 - 2018 Hitachi Vantara.  All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*
-*/
+/*! ******************************************************************************
+ *
+ * Pentaho Data Integration
+ *
+ * Copyright (C) 2010-2018 by Hitachi Vantara : http://www.pentaho.com
+ *
+ *******************************************************************************
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with
+ * the License. You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ ******************************************************************************/
+
 
 package org.pentaho.di.repository.pur;
-
-import java.io.Serializable;
-import java.lang.reflect.Proxy;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collections;
-import java.util.Date;
-import java.util.EnumMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
-import javax.xml.namespace.QName;
-import javax.xml.ws.Service;
-import javax.xml.ws.soap.SOAPFaultException;
 
 import org.apache.commons.lang.StringUtils;
 import org.pentaho.di.cluster.ClusterSchema;
@@ -77,6 +61,7 @@ import org.pentaho.di.repository.RepositoryElementMetaInterface;
 import org.pentaho.di.repository.RepositoryExtended;
 import org.pentaho.di.repository.RepositoryMeta;
 import org.pentaho.di.repository.RepositoryObject;
+import org.pentaho.di.repository.RepositoryObjectInterface;
 import org.pentaho.di.repository.RepositoryObjectType;
 import org.pentaho.di.repository.RepositorySecurityManager;
 import org.pentaho.di.repository.RepositorySecurityProvider;
@@ -103,15 +88,35 @@ import org.pentaho.platform.api.repository2.unified.RepositoryFile;
 import org.pentaho.platform.api.repository2.unified.RepositoryFileAcl;
 import org.pentaho.platform.api.repository2.unified.RepositoryFileTree;
 import org.pentaho.platform.api.repository2.unified.RepositoryRequest;
+import org.pentaho.platform.api.repository2.unified.RepositoryRequest.FILES_TYPE_FILTER;
 import org.pentaho.platform.api.repository2.unified.UnifiedRepositoryCreateFileException;
 import org.pentaho.platform.api.repository2.unified.UnifiedRepositoryUpdateFileException;
 import org.pentaho.platform.api.repository2.unified.VersionSummary;
-import org.pentaho.platform.api.repository2.unified.RepositoryRequest.FILES_TYPE_FILTER;
 import org.pentaho.platform.api.repository2.unified.data.node.DataNode;
 import org.pentaho.platform.api.repository2.unified.data.node.NodeRepositoryFileData;
 import org.pentaho.platform.repository.RepositoryFilenameUtils;
 import org.pentaho.platform.repository2.ClientRepositoryPaths;
 import org.pentaho.platform.repository2.unified.webservices.jaxws.IUnifiedRepositoryJaxwsWebService;
+
+import javax.xml.namespace.QName;
+import javax.xml.ws.Service;
+import javax.xml.ws.soap.SOAPFaultException;
+import java.io.Serializable;
+import java.lang.reflect.Proxy;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collections;
+import java.util.Date;
+import java.util.EnumMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Implementation of {@link Repository} that delegates to the Pentaho unified repository (PUR), an instance of
@@ -800,7 +805,7 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
     }
   }
 
-  private String getPath( final String name, final RepositoryDirectoryInterface repositoryDirectory,
+  protected String getPath( final String name, final RepositoryDirectoryInterface repositoryDirectory,
                           final RepositoryObjectType objectType ) {
 
     String path = null;
@@ -823,15 +828,6 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
         return getDatabaseMetaParentFolderPath() + RepositoryFile.SEPARATOR + sanitizedName
             + RepositoryObjectType.DATABASE.getExtension();
       }
-      case TRANSFORMATION: {
-        // Check for null path
-        if ( path == null ) {
-          return null;
-        } else {
-          return path + ( path.endsWith( RepositoryFile.SEPARATOR ) ? "" : RepositoryFile.SEPARATOR ) + sanitizedName
-              + RepositoryObjectType.TRANSFORMATION.getExtension();
-        }
-      }
       case PARTITION_SCHEMA: {
         return getPartitionSchemaParentFolderPath() + RepositoryFile.SEPARATOR + sanitizedName
             + RepositoryObjectType.PARTITION_SCHEMA.getExtension();
@@ -844,13 +840,14 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
         return getClusterSchemaParentFolderPath() + RepositoryFile.SEPARATOR + sanitizedName
             + RepositoryObjectType.CLUSTER_SCHEMA.getExtension();
       }
+      case TRANSFORMATION:
       case JOB: {
         // Check for null path
         if ( path == null ) {
           return null;
         } else {
           return path + ( path.endsWith( RepositoryFile.SEPARATOR ) ? "" : RepositoryFile.SEPARATOR ) + sanitizedName
-              + RepositoryObjectType.JOB.getExtension();
+              + ( sanitizedName.endsWith( objectType.getExtension() ) ? "" : objectType.getExtension() );
         }
       }
       default: {
@@ -1502,6 +1499,41 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
     return (List<SlaveServer>) loadAndCacheSharedObjects( true ).get( RepositoryObjectType.SLAVE_SERVER );
   }
 
+  @Override
+  @SuppressWarnings( "unchecked" )
+  public List<DatabaseMeta> getConnections( boolean cached ) throws KettleException {
+    return (List<DatabaseMeta>) getRepositoryObjects( RepositoryObjectType.DATABASE, cached );
+  }
+
+  @Override
+  @SuppressWarnings( "unchecked" )
+  public List<SlaveServer> getSlaveServers( boolean cached ) throws KettleException {
+    return (List<SlaveServer>) getRepositoryObjects( RepositoryObjectType.SLAVE_SERVER, cached );
+  }
+
+  @Override
+  @SuppressWarnings( "unchecked" )
+  public List<PartitionSchema> getPartitions( boolean cached ) throws KettleException {
+    return (List<PartitionSchema>) getRepositoryObjects( RepositoryObjectType.PARTITION_SCHEMA, cached );
+  }
+
+  @Override
+  @SuppressWarnings( "unchecked" )
+  public List<ClusterSchema> getClusters( boolean cached ) throws KettleException {
+    return (List<ClusterSchema>) getRepositoryObjects( RepositoryObjectType.CLUSTER_SCHEMA, cached );
+  }
+
+  protected List<?> getRepositoryObjects( RepositoryObjectType repositoryObjectType, boolean cached ) throws KettleException {
+    if ( cached ) {
+      return loadAndCacheSharedObjects( true ).get( repositoryObjectType );
+    } else {
+      Map<RepositoryObjectType, List<? extends SharedObjectInterface>> sharedObjects = new EnumMap<>(
+              RepositoryObjectType.class );
+      readSharedObjects( sharedObjects, repositoryObjectType );
+      return deepCopy( sharedObjects ).get( repositoryObjectType );
+    }
+  }
+
   public SlaveDelegate getSlaveTransformer() {
     return slaveTransformer;
   }
@@ -1756,6 +1788,7 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
         if ( obj instanceof DatabaseMeta ) {
           DatabaseMeta databaseMeta = (DatabaseMeta) ( (DatabaseMeta) obj ).clone();
           databaseMeta.setObjectId( ( (DatabaseMeta) obj ).getObjectId() );
+          databaseMeta.setChangedDate( obj.getChangedDate() );
           databaseMeta.clearChanged();
           newValueItem = databaseMeta;
         } else if ( obj instanceof SlaveServer ) {
@@ -2157,16 +2190,34 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
     throws KettleException {
     String absPath = null;
     try {
-      absPath = getPath( transName, parentDir, RepositoryObjectType.TRANSFORMATION );
-      if ( absPath == null ) {
+      // if transName is empty, we cannot load the transformation - the transformation path was likely not provided
+      // by the user
+      if ( StringUtils.isBlank( transName ) ) {
+        throw new KettleFileException( BaseMessages.getString( PKG,
+          "PurRepository.ERROR_0007_TRANSFORMATION_NAME_MISSING" ) );
+      }
+      try {
+        absPath = getPath( transName, parentDir, RepositoryObjectType.TRANSFORMATION );
+      } catch ( Exception e ) {
+        // ignore and handle null value below
+      }
+      // if absPath is empty, we cannot load the transformation - the path provided by the user was likely defined as a
+      // variable that is not available at runtime
+      if ( StringUtils.isBlank( absPath )  ) {
         // Couldn't resolve path, throw an exception
         throw new KettleFileException( BaseMessages.getString( PKG,
-            "PurRepository.ERROR_0002_TRANSFORMATION_NOT_FOUND", transName ) );
+          "PurRepository.ERROR_0008_TRANSFORMATION_PATH_INVALID", transName ) );
       }
       RepositoryFile file = pur.getFile( absPath );
       if ( versionId != null ) {
         // need to go back to server to get versioned info
         file = pur.getFileAtVersion( file.getId(), versionId );
+      }
+      // if file is null, we cannot load the transformation - the provided path provided by the user is likely not a
+      // valid file
+      if ( file == null ) {
+        throw new KettleException( BaseMessages.getString( PKG,
+          "PurRepository.ERROR_0008_TRANSFORMATION_PATH_INVALID", absPath ) );
       }
       NodeRepositoryFileData data = null;
       ObjectRevision revision = null;
@@ -2176,6 +2227,9 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
       TransMeta transMeta = buildTransMeta( file, parentDir, data, revision );
       ExtensionPointHandler.callExtensionPoint( log, KettleExtensionPoint.TransformationMetaLoaded.id, transMeta );
       return transMeta;
+    } catch ( final KettleException ke ) {
+      // if we have a KettleException, simply re-throw it
+      throw ke;
     } catch ( Exception e ) {
       throw new KettleException( "Unable to load transformation from path [" + absPath + "]", e );
     }
@@ -3070,6 +3124,41 @@ public class PurRepository extends AbstractRepository implements Repository, Rec
       default:
         throw new KettleException( "Unknown RepositoryObjectType. Should be TRANSFORMATION or JOB " );
     }
+  }
+
+  @Override
+  public List<RepositoryObjectInterface> getChildren( String path, String filter ) {
+    RepositoryRequest repoRequest = new RepositoryRequest();
+    repoRequest.setDepth( -1 );
+    repoRequest.setChildNodeFilter( "*" + filter + "*" );
+    repoRequest.setIncludeAcls( false );
+    repoRequest.setTypes( FILES_TYPE_FILTER.FILES_FOLDERS );
+    repoRequest.setPath( path );
+    repoRequest.setShowHidden( false );
+    List<RepositoryFile> repositoryFiles = pur.getChildren( repoRequest );
+    List<RepositoryObjectInterface> repositoryElementInterfaces = new ArrayList<>();
+    for ( RepositoryFile repositoryFile : repositoryFiles ) {
+      if ( repositoryFile.isFolder() ) {
+        RepositoryDirectoryInterface repositoryDirectory = new RepositoryDirectory();
+        repositoryDirectory.setName( repositoryFile.getName() );
+        repositoryDirectory.setObjectId( () -> repositoryFile.getId().toString() );
+        repositoryElementInterfaces.add( repositoryDirectory );
+      } else {
+        RepositoryObject repositoryObject = new RepositoryObject();
+        repositoryObject.setName( repositoryFile.getName() );
+        repositoryObject.setObjectId( () -> repositoryFile.getId().toString() );
+        RepositoryObjectType repositoryObjectType = RepositoryObjectType.UNKNOWN;
+        if ( repositoryFile.getName().endsWith( ".ktr" ) ) {
+          repositoryObjectType = RepositoryObjectType.TRANSFORMATION;
+        }
+        if ( repositoryFile.getName().endsWith( ".kjb" ) ) {
+          repositoryObjectType = RepositoryObjectType.JOB;
+        }
+        repositoryObject.setObjectType( repositoryObjectType );
+        repositoryElementInterfaces.add( repositoryObject );
+      }
+    }
+    return repositoryElementInterfaces;
   }
 
   @Override public boolean test() {

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,7 +22,8 @@
 
 package org.pentaho.di.trans.steps.jsoninput;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
@@ -41,13 +42,14 @@ import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import junit.framework.ComparisonFailure;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.vfs2.FileObject;
 import org.apache.commons.vfs2.FileSystemException;
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -118,6 +120,34 @@ public class JsonInputTest {
         + "      \"price\": 19.95\n"
         + "    }\n"
         + "  }\n"
+        + "}";
+  }
+
+  private static final String getPDI17060Json() {
+    return "{"
+        + " \"path\": \"/board/offer-sources/phases/current/cards/acquisitions\","
+        + " \"id\": \"acquisitions\","
+        + " \"template\": \"offer-sources\","
+        + " \"creator\": \"admin\","
+        + " \"created\": 1491703768197,"
+        + " \"modifiedby\": null,"
+        + " \"modified\": null,"
+        + " \"color\": \"blue\","
+        + " \"fields\": {"
+        + "   \"group-detail\": \"Offer Source Details\","
+        + "   \"name\": \"Acquisitions\""
+        + " },"
+        + " \"tasks\": 0,"
+        + " \"history\": 1,"
+        + " \"attachments\": 0,"
+        + " \"comments\": 0,"
+        + " \"alerts\": 0,"
+        + " \"title\": \"Acquisitions\","
+        + " \"lock\": null,"
+        + " \"completeTasks\": null,"
+        + " \"phase\": \"current\","
+        + " \"errors\": null,"
+        + " \"board\": \"offer-sources\""
         + "}";
   }
 
@@ -400,6 +430,57 @@ public class JsonInputTest {
     disposeJsonInput( jsonInput );
 
     Assert.assertEquals( 5, jsonInput.getLinesWritten() );
+  }
+
+  // There are tests for PDI-17060 below
+  @Test
+  public void testDefaultLeafToNullChangedToFalse_NoNullInOutput() throws Exception {
+    JsonInputField id = new JsonInputField( "id" );
+    id.setPath( "$..id" );
+    id.setType( ValueMetaInterface.TYPE_STRING );
+    JsonInputField name = new JsonInputField( "name" );
+    name.setPath( "$..name" );
+    name.setType( ValueMetaInterface.TYPE_STRING );
+
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    helper.redirectLog( out, LogLevel.ERROR );
+
+    JsonInputMeta meta = createSimpleMeta( "json", id, name );
+    // For these user who wanted to have "old" behavior
+    meta.setDefaultPathLeafToNull( false );
+    meta.setIgnoreMissingPath( true );
+    final String input = getPDI17060Json();
+
+    JsonInput jsonInput = createJsonInput( "json", meta, new Object[] { input } );
+    jsonInput.addRowListener( new RowComparatorListener( new Object[] { input, "acquisitions", "Acquisitions" } ) );
+    processRows( jsonInput, 8 );
+    disposeJsonInput( jsonInput );
+
+    Assert.assertEquals( 1, jsonInput.getLinesWritten() );
+  }
+
+  @Test
+  public void testDefaultLeafToNullTrue_NullsInOutput() throws Exception {
+    JsonInputField id = new JsonInputField( "id" );
+    id.setPath( "$..id" );
+    id.setType( ValueMetaInterface.TYPE_STRING );
+    JsonInputField name = new JsonInputField( "name" );
+    name.setPath( "$..name" );
+    name.setType( ValueMetaInterface.TYPE_STRING );
+
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    helper.redirectLog( out, LogLevel.ERROR );
+
+    JsonInputMeta meta = createSimpleMeta( "json", id, name );
+    meta.setIgnoreMissingPath( true );
+    final String input = getPDI17060Json();
+
+    JsonInput jsonInput = createJsonInput( "json", meta, new Object[] { input } );
+    jsonInput.addRowListener( new RowComparatorListener( new Object[] { input, "acquisitions", null }, new Object[] { input, null, "Acquisitions" } ) );
+    processRows( jsonInput, 8 );
+    disposeJsonInput( jsonInput );
+
+    Assert.assertEquals( 2, jsonInput.getLinesWritten() );
   }
 
   @Test
@@ -1098,7 +1179,7 @@ public class JsonInputTest {
     RowSet input = helper.getMockInputRowSet( inputRows );
     RowMetaInterface rowMeta = createRowMeta( new ValueMetaString( inCol ) );
     input.setRowMeta( rowMeta );
-    jsonInput.getInputRowSets().add( input );
+    jsonInput.addRowSetToInputRowSets( input );
     jsonInput.setInputRowMeta( rowMeta );
     jsonInput.initializeVariablesFrom( variables );
     jsonInput.init( meta, data );
@@ -1131,7 +1212,7 @@ public class JsonInputTest {
     @Override
     public void rowWrittenEvent( RowMetaInterface rowMeta, Object[] row ) throws KettleStepException {
       if ( rowNbr >= data.length ) {
-        throw new ComparisonFailure( "too many output rows", "" + data.length, "" + rowNbr + 1 );
+        throw new ComparisonFailure( "too many output rows", "" + data.length, "" + (rowNbr + 1) );
       } else {
         for ( int i = 0; i < data[ rowNbr ].length; i++ ) {
           try {

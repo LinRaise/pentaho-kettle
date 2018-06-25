@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -1118,7 +1118,6 @@ public class XMLOutputDialog extends BaseStepDialog implements StepDialogInterfa
       if ( field.getFieldName().equals( field.getElementName() ) ) {
         field.setElementName( "" );
       }
-
       field.setContentType( ContentType.valueOf( item.getText( index++ ) ) );
       field.setType( item.getText( index++ ) );
       field.setFormat( item.getText( index++ ) );
@@ -1152,6 +1151,7 @@ public class XMLOutputDialog extends BaseStepDialog implements StepDialogInterfa
       if ( r != null && !r.isEmpty() ) {
         TableItemInsertListener listener = new TableItemInsertListener() {
           public boolean tableItemInserted( TableItem tableItem, ValueMetaInterface v ) {
+            tableItem.setText( 3, ContentType.Element.name() );
             if ( v.isNumber() ) {
               if ( v.getLength() > 0 ) {
                 int le = v.getLength();

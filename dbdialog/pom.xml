@@ -5,7 +5,7 @@
 
   <groupId>pentaho-kettle</groupId>
   <artifactId>kettle-dbdialog</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>PDI DB Dialog</name>
@@ -13,8 +13,12 @@
   <parent>
     <groupId>org.pentaho.di</groupId>
     <artifactId>pdi</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
+
+  <properties>
+    <powermock.version>1.6.3</powermock.version>
+  </properties>
 
   <dependencies>
     <!-- Kettle dependencies -->
@@ -41,6 +45,26 @@
     <dependency>
       <groupId>org.pentaho</groupId>
       <artifactId>commons-xul-swing</artifactId>
+    </dependency>
+
+    <!-- Test dependencies -->
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-module-junit4</artifactId>
+      <version>${powermock.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-api-mockito</artifactId>
+      <version>${powermock.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.powermock</groupId>
+      <artifactId>powermock-core</artifactId>
+      <version>${powermock.version}</version>
+      <scope>test</scope>
     </dependency>
 
     <!-- Third-party (external) dependencies -->

@@ -22,19 +22,10 @@
 
 package org.pentaho.di.ui.repo.controller;
 
-import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.function.Supplier;
-
+import com.google.common.annotations.VisibleForTesting;
 import org.apache.commons.lang.ClassUtils;
 import org.eclipse.swt.widgets.DirectoryDialog;
+import org.eclipse.swt.widgets.Shell;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.pentaho.di.core.Const;
@@ -52,6 +43,7 @@ import org.pentaho.di.repository.ReconnectableRepository;
 import org.pentaho.di.repository.RepositoriesMeta;
 import org.pentaho.di.repository.Repository;
 import org.pentaho.di.repository.RepositoryMeta;
+import org.pentaho.di.trans.Trans;
 import org.pentaho.di.ui.core.PropsUI;
 import org.pentaho.di.ui.core.database.dialog.DatabaseDialog;
 import org.pentaho.di.ui.repo.IConnectedRepositoryInstance;
@@ -60,7 +52,16 @@ import org.pentaho.di.ui.repo.timeout.RepositorySessionTimeoutHandler;
 import org.pentaho.di.ui.spoon.Spoon;
 import org.pentaho.di.ui.util.HelpUtils;
 
-import com.google.common.annotations.VisibleForTesting;
+import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Supplier;
 
 /**
  * Created by bmorrise on 4/18/16.
@@ -112,9 +113,12 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
   }
 
   public boolean help() {
-    spoonSupplier.get().getShell().getDisplay().asyncExec( () -> HelpUtils
-      .openHelpDialog( spoonSupplier.get().getShell(), BaseMessages.getString( PKG, "RepositoryDialog.Dialog.Tile" ),
-        HELP_URL, BaseMessages.getString( PKG, "RepositoryDialog.Dialog.Header" ) ) );
+    spoonSupplier.get().getShell().getDisplay().asyncExec( () -> {
+      Shell[] shells = spoonSupplier.get().getShell().getShells();
+      HelpUtils
+        .openHelpDialog( shells[ shells.length - 1 ], BaseMessages.getString( PKG, "RepositoryDialog.Dialog.Tile" ),
+          HELP_URL, BaseMessages.getString( PKG, "RepositoryDialog.Dialog.Header" ) );
+    } );
     return true;
   }
 
@@ -221,51 +225,50 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
 
   public boolean updateRepository( String id, Map<String, Object> items ) {
     RepositoryMeta repositoryMeta = repositoriesMeta.findRepository( (String) items.get( ORIGINAL_NAME ) );
-    if ( repositoryMeta != null ) {
-      repositoriesMeta.removeRepository( repositoriesMeta.indexOfRepository( repositoryMeta ) );
+    boolean isConnected = repositoryMeta == connectedRepository;
+    repositoryMeta.setName( (String) items.get( DISPLAY_NAME ) );
+    repositoryMeta.setDescription( (String) items.get( DESCRIPTION ) );
+    repositoryMeta.setDefault( (Boolean) items.get( IS_DEFAULT ) );
+    save();
+    if ( isConnected ) {
+      Spoon spoon = spoonSupplier.get();
+      Runnable execute = () -> {
+        spoon.setRepositoryName( repositoryMeta.getName() );
+        fireListeners();
+      };
+      if ( spoon.getShell() != null ) {
+        spoon.getShell().getDisplay().asyncExec( execute );
+      } else {
+        execute.run();
+      }
     }
-    return createRepository( id, items );
+    currentRepository = repositoryMeta;
+    return true;
   }
 
-  public boolean createRepository( String id, Map<String, Object> items ) {
+  public RepositoryMeta createRepository( String id, Map<String, Object> items ) {
+    RepositoryMeta repositoryMeta;
     try {
-      RepositoryMeta repositoryMeta = pluginRegistry.loadClass( RepositoryPluginType.class, id, RepositoryMeta.class );
+      repositoryMeta = pluginRegistry.loadClass( RepositoryPluginType.class, id, RepositoryMeta.class );
       repositoryMeta.populate( items, repositoriesMeta );
 
       if ( repositoryMeta.getName() != null ) {
         Repository repository =
           pluginRegistry.loadClass( RepositoryPluginType.class, repositoryMeta.getId(), Repository.class );
         repository.init( repositoryMeta );
-        if ( currentRepository != null && isCompatibleRepositoryEdit( repositoryMeta ) ) {
-          setConnectedRepository( repositoryMeta );
-        }
         repositoriesMeta.addRepository( repositoryMeta );
         repositoriesMeta.writeData();
         currentRepository = repositoryMeta;
         if ( !testRepository( repository ) ) {
-          return false;
+          return null;
         }
         ( (AbstractRepository) repository ).create();
       }
     } catch ( KettleException ke ) {
       log.logError( "Unable to load repository type", ke );
-      return false;
+      return null;
     }
-    return true;
-  }
-
-  private boolean isCompatibleRepositoryEdit( RepositoryMeta repositoryMeta ) {
-    if ( repositoriesMeta.indexOfRepository( currentRepository ) >= 0
-        && connectedRepository != null
-        && repositoryEquals( connectedRepository, currentRepository ) ) {
-      // only name / description / default changed ?
-      RepositoryMeta clone = repositoryMeta.clone();
-      clone.setName( connectedRepository.getName() );
-      clone.setDescription( connectedRepository.getDescription() );
-      clone.setDefault( connectedRepository.isDefault() );
-      return repositoryEquals( connectedRepository, clone );
-    }
-    return false;
+    return repositoryMeta;
   }
 
   private boolean repositoryEquals( RepositoryMeta repo1, RepositoryMeta repo2 ) {
@@ -274,10 +277,19 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
 
   @SuppressWarnings( "unchecked" )
   public String getRepositories() {
+    String connected = null;
+    if ( spoonSupplier.get() != null && spoonSupplier.get().rep != null ) {
+      connected = spoonSupplier.get().rep.getName();
+    }
     List<JSONObject> list = new ArrayList<>();
     if ( repositoriesMeta != null ) {
       for ( int i = 0; i < repositoriesMeta.nrRepositories(); i++ ) {
-        list.add( repositoriesMeta.getRepository( i ).toJSONObject() );
+        RepositoryMeta repositoryMeta = repositoriesMeta.getRepository( i );
+        JSONObject repoJson = repositoryMeta.toJSONObject();
+        if ( connected != null && repositoryMeta.getName().equals( connected ) ) {
+          repoJson.put( "connected", true );
+        }
+        list.add( repoJson );
       }
     }
     return list.toString();
@@ -395,7 +407,7 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
     Future<KettleException> future = executorService.submit( () -> {
       ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
       try {
-        Thread.currentThread().setContextClassLoader( Spoon.class.getClassLoader() );
+        Thread.currentThread().setContextClassLoader( Trans.class.getClassLoader() );
         repository.connect( username, password );
       } catch ( KettleException e ) {
         return e;
@@ -420,7 +432,7 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
     Future<Boolean> future = executorService.submit( () -> {
       ClassLoader currentClassLoader = Thread.currentThread().getContextClassLoader();
       try {
-        Thread.currentThread().setContextClassLoader( Spoon.class.getClassLoader() );
+        Thread.currentThread().setContextClassLoader( Trans.class.getClassLoader() );
         return ( (AbstractRepository) repository ).test();
       } finally {
         Thread.currentThread().setContextClassLoader( currentClassLoader );
@@ -438,13 +450,21 @@ public class RepositoryConnectController implements IConnectedRepositoryInstance
     RepositoryMeta repositoryMeta = repositoriesMeta.findRepository( name );
     int index = repositoriesMeta.indexOfRepository( repositoryMeta );
     if ( index != -1 ) {
-      Spoon spoon = spoonSupplier.get();
-      if ( spoon.getRepositoryName() != null && spoon.getRepositoryName().equals( repositoryMeta.getName() ) ) {
-        spoon.closeRepository();
-        setConnectedRepository( null );
-      }
       repositoriesMeta.removeRepository( index );
       save();
+      Spoon spoon = spoonSupplier.get();
+      Runnable execute = () -> {
+        if ( spoon.getRepositoryName() != null && spoon.getRepositoryName().equals( repositoryMeta.getName() ) ) {
+          spoon.closeRepository();
+          setConnectedRepository( null );
+        }
+        fireListeners();
+      };
+      if ( spoon.getShell() != null ) {
+        spoon.getShell().getDisplay().asyncExec( execute );
+      } else {
+        execute.run();
+      }
     }
     return true;
   }

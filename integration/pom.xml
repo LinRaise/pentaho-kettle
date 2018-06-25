@@ -6,14 +6,14 @@
 
   <groupId>org.pentaho</groupId>
   <artifactId>pdi-integration-tests</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
 
   <name>Pentaho Data Integration Integration Tests</name>
 
   <parent>
     <groupId>org.pentaho.di</groupId>
     <artifactId>pdi</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <properties>
@@ -22,6 +22,7 @@
     <sshd-sftp.version>0.11.0</sshd-sftp.version>
     <ftpserver-core.version>1.0.6</ftpserver-core.version>
     <bcprov-jdk14.version>1.51</bcprov-jdk14.version>
+    <pdi.version>9.0.0.0-SNAPSHOT</pdi.version>
   </properties>
 
   <dependencies>
@@ -70,14 +71,8 @@
     </dependency>
 
     <dependency>
-      <groupId>pentaho-kettle</groupId>
-      <artifactId>kettle-gpload-plugin</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>pentaho-kettle</groupId>
-      <artifactId>kettle-xml-plugin</artifactId>
+      <groupId>org.pentaho.di.plugins</groupId>
+      <artifactId>kettle-gpload-plugin-core</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
@@ -127,6 +122,18 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-all</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.di.plugins</groupId>
+      <artifactId>pdi-xml-plugin-core</artifactId>
+      <version>${pdi.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.pentaho.di.plugins</groupId>
+      <artifactId>pdi-core-plugins-impl</artifactId>
+      <version>${pdi.version}</version>
+      <scope>test</scope>
     </dependency>
   </dependencies>
 

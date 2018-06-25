@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -27,6 +27,11 @@ import org.pentaho.di.core.Const;
 import org.pentaho.di.core.KettleVariablesList;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.RandomAccessFile;
 
 /**
  * Created by Yury_Bakhmutski on 11/4/2015.
@@ -38,13 +43,30 @@ public class KettleVariablesListTest {
     KettleVariablesList variablesList = KettleVariablesList.getInstance();
     variablesList.init();
     //See PDI-14522
-    boolean expected = false;
     boolean actual = Boolean.valueOf( variablesList.getDefaultValueMap().get( Const.VFS_USER_DIR_IS_ROOT ) );
-    assertEquals( expected, actual );
+    assertEquals( false, actual );
 
     String vfsUserDirIsRootDefaultMessage =
         "Set this variable to true if VFS should treat the user directory"
             + " as the root directory when connecting via ftp. Defaults to false.";
     assertEquals( variablesList.getDescriptionMap().get( Const.VFS_USER_DIR_IS_ROOT ), vfsUserDirIsRootDefaultMessage );
+  }
+
+  @Test
+  public void testInit_closeInputStream() throws Exception {
+    KettleVariablesList.init();
+    RandomAccessFile fos = null;
+    try {
+      File file = new File( Const.KETTLE_VARIABLES_FILE );
+      if ( file.exists() ) {
+        fos = new RandomAccessFile( file, "rw" );
+      }
+    } catch ( FileNotFoundException | SecurityException e ) {
+      fail( "the file with properties should be unallocated" );
+    } finally {
+      if ( fos != null ) {
+        fos.close();
+      }
+    }
   }
 }

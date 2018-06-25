@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -23,47 +23,49 @@
 package org.pentaho.di.repository;
 
 import org.apache.commons.io.IOUtils;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
-import org.mockito.Mockito;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.logging.LogChannel;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 import org.pentaho.test.util.XXEUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertNull;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class RepositoriesMetaTest {
   private RepositoriesMeta repoMeta;
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
 
   @BeforeClass
   public static void setUpClass() throws Exception {
-    if ( !KettleEnvironment.isInitialized() ) {
-      KettleEnvironment.init();
-    }
+    KettleEnvironment.init();
   }
 
   @Before
   public void setUp() {
-    repoMeta = new RepositoriesMeta();
-    repoMeta = Mockito.spy( repoMeta );
-    LogChannel log = mock( LogChannel.class );
-    when( repoMeta.newLogChannel() ).thenReturn( log );
+    repoMeta = spy( new RepositoriesMeta() );
   }
-
 
   @Test
   public void testToString() throws Exception {
@@ -72,11 +74,35 @@ public class RepositoriesMetaTest {
   }
 
   @Test
+  public void testReadData_closeInput() throws Exception {
+    String repositoriesFile = getClass().getResource( "repositories.xml" ).getPath();
+    
+    LogChannel log = mock( LogChannel.class );
+    when( repoMeta.getKettleUserRepositoriesFile() ).thenReturn( repositoriesFile );
+    when( repoMeta.newLogChannel() ).thenReturn( log );
+    repoMeta.readData();
+    
+    RandomAccessFile fos = null;
+    try {
+      File file = new File( repositoriesFile );
+      if ( file.exists() ) {
+        fos = new RandomAccessFile( file, "rw" );
+      }
+    } catch ( FileNotFoundException | SecurityException e ) {
+      fail( "the file with properties should be unallocated" );
+    } finally {
+      if ( fos != null ) {
+        fos.close();
+      }
+    }
+  }
+  
+  @Test
   public void testReadData() throws Exception {
 
     LogChannel log = mock( LogChannel.class );
-    when( repoMeta.getKettleUserRepositoriesFile() ).thenReturn( getClass().getResource( "repositories.xml" ).getPath() );
-    when( repoMeta.newLogChannel() ).thenReturn( log );
+    doReturn( getClass().getResource( "repositories.xml" ).getPath() ).when( repoMeta ).getKettleUserRepositoriesFile();
+    doReturn( log ).when( repoMeta ).newLogChannel();
     repoMeta.readData();
 
     String repositoriesXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + Const.CR
@@ -163,7 +189,7 @@ public class RepositoriesMetaTest {
 
   @Test
   public void testNothingToRead() throws Exception {
-    when( repoMeta.getKettleUserRepositoriesFile() ).thenReturn( "filedoesnotexist.xml" );
+    doReturn( "filedoesnotexist.xml" ).when( repoMeta ).getKettleUserRepositoriesFile();
 
     assertTrue( repoMeta.readData() );
     assertEquals( 0, repoMeta.nrDatabases() );
@@ -206,7 +232,7 @@ public class RepositoriesMetaTest {
   @Test
   public void testWriteFile() throws Exception {
     String path = getClass().getResource( "repositories.xml" ).getPath().replace( "repositories.xml", "new-repositories.xml" );
-    when( repoMeta.getKettleUserRepositoriesFile() ).thenReturn( path );
+    doReturn( path ).when( repoMeta ).getKettleUserRepositoriesFile();
     repoMeta.writeData();
     InputStream resourceAsStream = getClass().getResourceAsStream( "new-repositories.xml" );
     assertEquals(

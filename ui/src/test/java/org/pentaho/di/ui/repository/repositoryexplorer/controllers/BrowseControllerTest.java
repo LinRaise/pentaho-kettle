@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -24,12 +24,11 @@ package org.pentaho.di.ui.repository.repositoryexplorer.controllers;
 
 import org.junit.Before;
 import org.junit.Test;
-import org.mockito.Mockito;
+import org.pentaho.di.i18n.BaseMessages;
 import org.pentaho.di.repository.ObjectId;
-import org.pentaho.di.repository.RepositoryDirectoryInterface;
-import org.pentaho.di.repository.RepositoryExtended;
-import org.pentaho.di.repository.UserInfo;
+import org.pentaho.di.ui.repository.repositoryexplorer.RepositoryExplorer;
 import org.pentaho.di.ui.repository.repositoryexplorer.model.UIRepositoryDirectory;
+import org.pentaho.di.ui.repository.repositoryexplorer.model.UIRepositoryObject;
 import org.pentaho.ui.xul.XulDomContainer;
 import org.pentaho.ui.xul.binding.Binding;
 import org.pentaho.ui.xul.components.XulPromptBox;
@@ -46,9 +45,20 @@ import java.util.Map;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BrowseControllerTest {
+
+  private static Class<?> PKG = RepositoryExplorer.class; // for i18n purposes, needed by Translator2!!
 
   private static final String PROMPTBOX = "promptbox";
   private static final String FOLDER_NAME = "New Folder";
@@ -65,7 +75,7 @@ public class BrowseControllerTest {
   public void setUp() throws Exception {
     DocumentFactory.registerElementClass( ElementDom4J.class );
 
-    controller = new BrowseController();
+    controller = spy( new BrowseController() );
 
     controller.setRepositoryDirectory( mock( UIRepositoryDirectory.class ) );
 
@@ -132,9 +142,39 @@ public class BrowseControllerTest {
     verify( selectedItemsBinding ).fireSourceChanged();
   }
 
+  @Test
+  public void folderWithSingleDotThrowsException() throws Exception {
+    XulPromptBox prompt = new XulPromptBoxMock( XulDialogCallback.Status.ACCEPT );
+    when( document.createElement( PROMPTBOX ) ).thenReturn( prompt );
+
+    doNothing().when( controller ).confirm( anyString(), anyString() );
+    doReturn( prompt ).when( controller ).promptForName( any( UIRepositoryObject.class ) );
+    prompt.setValue( "." );
+    controller.createFolder();
+
+    verify( controller, times( 1 ) ).confirm(
+      BaseMessages.getString( PKG, "Dialog.Error" ),
+      BaseMessages.getString( PKG, "BrowserController.InvalidFolderName" ) );
+  }
+
+  @Test
+  public void folderWithDoubleDotThrowsException() throws Exception {
+    XulPromptBox prompt = new XulPromptBoxMock( XulDialogCallback.Status.ACCEPT );
+    when( document.createElement( PROMPTBOX ) ).thenReturn( prompt );
+
+    doNothing().when( controller ).confirm( anyString(), anyString() );
+    doReturn( prompt ).when( controller ).promptForName( any( UIRepositoryObject.class ) );
+    prompt.setValue( ".." );
+    controller.createFolder();
+
+    verify( controller, times( 1 ) ).confirm(
+      BaseMessages.getString( PKG, "Dialog.Error" ),
+      BaseMessages.getString( PKG, "BrowserController.InvalidFolderName" ) );
+  }
 
   private static class XulPromptBoxMock extends MessageDialogBase implements XulPromptBox {
     private final XulDialogCallback.Status status;
+    private String value = null;
 
     public XulPromptBoxMock( XulDialogCallback.Status status ) {
       super( PROMPTBOX );
@@ -143,49 +183,20 @@ public class BrowseControllerTest {
 
     @Override
     public String getValue() {
-      return null;
+      return value;
     }
 
     @Override
     public void setValue( String value ) {
-      // do nothing
+      this.value = value;
     }
 
     @Override
     public int open() {
       for ( XulDialogCallback<String> callback : callbacks ) {
-        callback.onClose( null, status, FOLDER_NAME );
+        callback.onClose( null, status, value );
       }
       return 0;
     }
-  }
-
-  //PDI-16258
-  @Test
-  public void testInit() throws Exception {
-
-    RepositoryExtended repository = Mockito.mock( RepositoryExtended.class );
-
-    UserInfo userInfo = new UserInfo( "user", "password", "user", "test user", true );
-    userInfo.setAdmin( true );
-    Mockito.doReturn( userInfo ).when( repository ).getUserInfo();
-    Mockito.doReturn( Mockito.mock( RepositoryDirectoryInterface.class ) ).when( repository ).
-            loadRepositoryDirectoryTree( anyString(), anyString(), anyInt(), anyBoolean(), anyBoolean(), anyBoolean() );
-
-    BrowseController browseController = Mockito.spy( controller );
-
-    doNothing().when( browseController ).createBindings();
-    browseController.init( repository );
-    Mockito.verify( repository  ).loadRepositoryDirectoryTree( "/", "*.ktr|*.kjb", -1, true, true, true );
-
-
-    userInfo.setAdmin( false );
-    browseController.init( repository );
-    Mockito.verify( repository ).loadRepositoryDirectoryTree( "/", "*.ktr|*.kjb", -1, false, true, true );
-
-
-    userInfo.setAdmin( null );
-    browseController.init( repository );
-    Mockito.verify( repository, Mockito.times( 2 ) ).loadRepositoryDirectoryTree( "/", "*.ktr|*.kjb", -1, false, true, true );
   }
 }

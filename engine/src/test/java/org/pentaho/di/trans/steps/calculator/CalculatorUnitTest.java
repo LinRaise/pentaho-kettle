@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,13 +22,16 @@
 
 package org.pentaho.di.trans.steps.calculator;
 
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.when;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -37,9 +40,12 @@ import java.util.List;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
+import org.mockito.ArgumentMatcher;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.RowSet;
@@ -54,6 +60,8 @@ import org.pentaho.di.core.row.value.ValueMetaBigNumber;
 import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaNumber;
 import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.i18n.BaseMessages;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 import org.pentaho.di.trans.step.RowAdapter;
 import org.pentaho.di.trans.steps.mock.StepMockHelper;
 
@@ -66,7 +74,10 @@ import junit.framework.Assert;
  * @see Calculator
  */
 public class CalculatorUnitTest {
+  private static Class<?> PKG = CalculatorUnitTest.class; // for i18n purposes, needed by Translator2!!
   private StepMockHelper<CalculatorMeta, CalculatorData> smh;
+
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
 
   @BeforeClass
   public static void init() throws KettleException {
@@ -81,6 +92,44 @@ public class CalculatorUnitTest {
     when( smh.logChannelInterfaceFactory.create( any(), any( LoggingObjectInterface.class ) ) ).thenReturn(
       smh.logChannelInterface );
     when( smh.trans.isRunning() ).thenReturn( true );
+  }
+
+  @After
+  public void cleanUp() {
+    smh.cleanUp();
+  }
+
+  @Test
+  public void testMissingFile() throws KettleException {
+    RowMeta inputRowMeta = new RowMeta();
+    ValueMetaString pathMeta = new ValueMetaString( "Path" );
+    inputRowMeta.addValueMeta( pathMeta );
+
+    String filepath = "missingFile";
+    Object[] rows = new Object[] { filepath };
+    RowSet inputRowSet = smh.getMockInputRowSet( rows );
+    inputRowSet.setRowMeta( inputRowMeta );
+
+    Calculator calculator = spy( new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans ) );
+    calculator.addRowSetToInputRowSets( inputRowSet );
+    calculator.setInputRowMeta( inputRowMeta );
+    calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
+
+    CalculatorMeta meta = new CalculatorMeta();
+    CalculatorMetaFunction[] calculations = new CalculatorMetaFunction[] {
+      new CalculatorMetaFunction( "result", CalculatorMetaFunction.CALC_MD5, "Path", null, null,
+        ValueMetaInterface.TYPE_STRING, 0, 0, false, "", "", "", "" ) };
+    meta.setCalculation( calculations );
+    meta.setFailIfNoFile( true );
+
+    boolean processed = calculator.processRow( meta, new CalculatorData() );
+    verify( calculator, times( 1 ) ).logError( argThat( new ArgumentMatcher<String>() {
+      @Override
+      public boolean matches( Object o ) {
+        return ((String) o ).contains( BaseMessages.getString( PKG, "Calculator.Log.NoFile" ) );
+      }
+    } ) );
+    assertFalse( processed );
   }
 
   @Test
@@ -103,7 +152,7 @@ public class CalculatorUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -142,7 +191,7 @@ public class CalculatorUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -175,7 +224,7 @@ public class CalculatorUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -584,7 +633,7 @@ public class CalculatorUnitTest {
     final int expectedResultRowSize = inputRowMeta.size() + 1;
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -746,6 +795,75 @@ public class CalculatorUnitTest {
       }
     } else {
       Assert.assertEquals( msg, expected, actual );
+    }
+  }
+
+  @Test
+  public void calculatorReminder() throws Exception {
+    assertCalculatorReminder( new Double( "0.10000000000000053" ), new Object[]{ new Long( "10" ), new Double( "3.3" ) },
+      new int[]{ ValueMetaInterface.TYPE_INTEGER, ValueMetaInterface.TYPE_NUMBER } );
+    assertCalculatorReminder( new Double( "1.0" ), new Object[]{ new Long( "10" ), new Double( "4.5" ) },
+      new int[]{ ValueMetaInterface.TYPE_INTEGER, ValueMetaInterface.TYPE_NUMBER } );
+    assertCalculatorReminder( new Double( "4.0" ), new Object[]{ new Double( "12.5" ), new Double( "4.25" ) },
+      new int[]{ ValueMetaInterface.TYPE_NUMBER, ValueMetaInterface.TYPE_NUMBER } );
+    assertCalculatorReminder( new Double( "2.6000000000000005" ), new Object[]{ new Double( "12.5" ), new Double( "3.3" ) },
+      new int[]{ ValueMetaInterface.TYPE_NUMBER, ValueMetaInterface.TYPE_NUMBER } );
+  }
+
+  private void assertCalculatorReminder( final Object expectedResult, final Object[] values, final int[] types ) throws Exception {
+    RowMeta inputRowMeta = new RowMeta();
+    for( int i = 0; i < types.length; i++ ) {
+      switch ( types[i] ) {
+        case ValueMetaInterface.TYPE_BIGNUMBER:
+          inputRowMeta.addValueMeta( new ValueMetaBigNumber("f" + i ) );
+          break;
+        case ValueMetaInterface.TYPE_NUMBER:
+          inputRowMeta.addValueMeta( new ValueMetaNumber("f" + i ) );
+          break;
+        case ValueMetaInterface.TYPE_INTEGER:
+          inputRowMeta.addValueMeta( new ValueMetaInteger("f" + i ) );
+          break;
+        default:
+          throw new IllegalArgumentException( "Unexpected value dataType: " + types[i]
+            + ". Long, Double or BigDecimal expected." );
+      }
+    }
+
+    RowSet inputRowSet = null;
+    try {
+      inputRowSet = smh.getMockInputRowSet( new Object[][] {
+        { values[0], values[1] } } );
+    } catch ( Exception pe ) {
+      pe.printStackTrace();
+      fail();
+    }
+    inputRowSet.setRowMeta( inputRowMeta );
+
+    Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
+    calculator.addRowSetToInputRowSets( inputRowSet );
+    calculator.setInputRowMeta( inputRowMeta );
+    calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
+
+    CalculatorMeta meta = new CalculatorMeta();
+    meta.setCalculation( new CalculatorMetaFunction[] {
+      new CalculatorMetaFunction( "res", CalculatorMetaFunction.CALC_REMAINDER, "f0", "f1", null,
+        ValueMetaInterface.TYPE_NUMBER, 0, 0, false, "", "", "", "" ) } );
+
+    //Verify output
+    try {
+      calculator.addRowListener( new RowAdapter() {
+        @Override public void rowWrittenEvent( RowMetaInterface rowMeta, Object[] row ) throws KettleStepException {
+          try {
+            assertEquals( expectedResult, row[ 2 ] );
+          } catch ( Exception pe ) {
+            throw new KettleStepException( pe );
+          }
+        }
+      } );
+      calculator.processRow( meta, new CalculatorData() );
+    } catch ( KettleException ke ) {
+      ke.printStackTrace();
+      fail();
     }
   }
 }

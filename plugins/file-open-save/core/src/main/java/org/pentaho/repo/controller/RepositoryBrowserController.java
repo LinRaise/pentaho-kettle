@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Hitachi Vantara. All rights reserved.
+ * Copyright 2017-2018 Hitachi Vantara. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,6 @@
 
 package org.pentaho.repo.controller;
 
-import org.apache.commons.collections.CollectionUtils;
-import org.apache.commons.lang.BooleanUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -40,18 +38,20 @@ import org.pentaho.di.repository.RepositoryObjectType;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.ui.core.PropsUI;
 import org.pentaho.di.ui.spoon.Spoon;
+import org.pentaho.platform.api.repository2.unified.RepositoryFileTree;
+import org.pentaho.platform.api.repository2.unified.RepositoryRequest;
 import org.pentaho.repo.model.RepositoryDirectory;
 import org.pentaho.repo.model.RepositoryFile;
 import org.pentaho.repo.model.RepositoryName;
+import org.pentaho.repo.model.RepositoryTree;
 import org.pentaho.repo.util.Util;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
-import java.util.LinkedList;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.function.Supplier;
 
 /**
@@ -59,9 +59,15 @@ import java.util.function.Supplier;
  */
 public class RepositoryBrowserController {
 
-  public static final String TRANSFORMATION = "transformation";
-  private Supplier<Spoon> spoonSupplier = Spoon::getInstance;
+  public static final String PENTAHO_ENTERPRISE_REPOSITORY = "PentahoEnterpriseRepository";
   public static Repository repository;
+  public static final String TRANSFORMATION = "transformation";
+  public static final String JOB = "job";
+  public static final String FOLDER = "folder";
+  public static final String FILTER = "*.ktr|*.kjb";
+
+  private RepositoryDirectoryInterface rootDirectory;
+  private Supplier<Spoon> spoonSupplier = Spoon::getInstance;
 
   public boolean loadFile( String id, String type ) {
     try {
@@ -90,10 +96,10 @@ public class RepositoryBrowserController {
   }
 
   public ObjectId rename( String id, String path, String newName, String type, String oldName ) throws KettleException {
-    RepositoryDirectoryInterface repositoryDirectoryInterface = getRepository().findDirectory( path );
+    RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
     ObjectId objectId = null;
     switch ( type ) {
-      case "job":
+      case JOB:
         if ( getRepository().exists( newName, repositoryDirectoryInterface, RepositoryObjectType.JOB ) ) {
           throw new KettleObjectExistsException();
         }
@@ -103,7 +109,7 @@ public class RepositoryBrowserController {
         renameRecent( id, type, newName );
         objectId = getRepository().renameJob( () -> id, repositoryDirectoryInterface, newName );
         break;
-      case "transformation":
+      case TRANSFORMATION:
         if ( getRepository().exists( newName, repositoryDirectoryInterface, RepositoryObjectType.TRANSFORMATION ) ) {
           throw new KettleObjectExistsException();
         }
@@ -113,11 +119,11 @@ public class RepositoryBrowserController {
         renameRecent( id, type, newName );
         objectId = getRepository().renameTransformation( () -> id, repositoryDirectoryInterface, newName );
         break;
-      case "folder":
+      case FOLDER:
         isFileOpenedInFolder( path );
-        RepositoryDirectoryInterface parent = getRepository().findDirectory( path ).getParent();
+        RepositoryDirectoryInterface parent = findDirectory( path ).getParent();
         if ( parent == null ) {
-          parent = getRepository().findDirectory( path );
+          parent = findDirectory( path );
         }
         RepositoryDirectoryInterface child = parent.findChild( newName );
         if ( child != null ) {
@@ -188,24 +194,22 @@ public class RepositoryBrowserController {
   public boolean remove( String id, String name, String path, String type ) throws KettleException {
     try {
       switch ( type ) {
-        case "job":
+        case JOB:
           if ( isJobOpened( id, path, name ) ) {
             throw new KettleJobException();
           }
-          removeRecent( id, type );
           getRepository().deleteJob( () -> id );
           break;
-        case "transformation":
+        case TRANSFORMATION:
           if ( isTransOpened( id, path, name ) ) {
             throw new KettleTransException();
           }
-          removeRecent( id, type );
           getRepository().deleteTransformation( () -> id );
           break;
-        case "folder":
+        case FOLDER:
           isFileOpenedInFolder( path );
           removeRecentsUsingPath( path );
-          RepositoryDirectoryInterface repositoryDirectoryInterface = getRepository().findDirectory( path );
+          RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
           if ( getRepository() instanceof RepositoryExtended ) {
             ( (RepositoryExtended) getRepository() ).deleteRepositoryDirectory( repositoryDirectoryInterface, true );
           } else {
@@ -214,43 +218,54 @@ public class RepositoryBrowserController {
           break;
       }
       return true;
-    } catch ( KettleTransException | KettleJobException ke  ) {
+    } catch ( KettleTransException | KettleJobException ke ) {
       throw ke;
     } catch ( Exception e ) {
       return false;
     }
   }
 
-  private boolean removeRecent( String id, String type ) {
-    RepositoryObject repositoryObject = null;
-    try {
-      repositoryObject = getRepository().getObjectInformation( () -> id,
-        ( type == "transformation" ? RepositoryObjectType.TRANSFORMATION : RepositoryObjectType.JOB ) );
-    } catch ( Exception e ) {
-      return false;
-    }
+  public List<RepositoryFile> getRecentFiles() {
+    PropsUI props = PropsUI.getInstance();
 
-    if ( repositoryObject != null ) {
-      Collection<List<LastUsedFile>> lastUsedRepoFiles = PropsUI.getInstance().getLastUsedRepoFiles().values();
-      for ( List<LastUsedFile> lastUsedFiles : lastUsedRepoFiles ) {
-        for ( LastUsedFile lastUsedFile : lastUsedFiles ) {
-          if ( lastUsedFile.getDirectory().equals( repositoryObject.getRepositoryDirectory().getPath() ) && lastUsedFile
-            .getFilename().equals( repositoryObject.getName() ) ) {
-            lastUsedFiles.remove( lastUsedFile );
-            return true;
-          }
-        }
+    List<RepositoryFile> repositoryFiles = new ArrayList<>();
+    IUser userInfo = Spoon.getInstance().rep.getUserInfo();
+    String repoAndUser = Spoon.getInstance().rep.getName() + ":" + ( userInfo != null ? userInfo.getLogin() : "" );
+    List<LastUsedFile> lastUsedFiles =
+      props.getLastUsedRepoFiles().getOrDefault( repoAndUser, Collections.emptyList() );
+
+    Calendar calendar = Calendar.getInstance();
+    calendar.add( Calendar.DATE, -30 );
+    Date dateBefore = calendar.getTime();
+
+    for ( int i = 0; i < lastUsedFiles.size(); i++ ) {
+      LastUsedFile lastUsedFile = lastUsedFiles.get( i );
+      if ( lastUsedFile.getLastOpened().before( dateBefore ) ) {
+        continue;
+      }
+      if ( lastUsedFile.getRepositoryName() != null && lastUsedFile.getRepositoryName()
+        .equals( Spoon.getInstance().rep.getName() ) ) {
+        RepositoryFile repositoryFile = new RepositoryFile();
+        final String index = String.valueOf( i );
+        repositoryFile.setObjectId( () -> index );
+        repositoryFile.setType( lastUsedFile.isTransformation() ? TRANSFORMATION : JOB );
+        repositoryFile.setName( lastUsedFile.getFilename() );
+        repositoryFile.setPath( lastUsedFile.getDirectory() );
+        repositoryFile.setDate( lastUsedFile.getLastOpened() );
+        repositoryFile.setRepository( lastUsedFile.getRepositoryName() );
+        repositoryFile.setUsername( lastUsedFile.getUsername() );
+        repositoryFiles.add( repositoryFile );
       }
     }
 
-    return true;
+    return repositoryFiles;
   }
 
   private boolean renameRecent( String id, String type, String name ) {
     RepositoryObject repositoryObject = null;
     try {
       repositoryObject = getRepository().getObjectInformation( () -> id,
-        ( type == "transformation" ? RepositoryObjectType.TRANSFORMATION : RepositoryObjectType.JOB ) );
+        ( type.equals( TRANSFORMATION ) ? RepositoryObjectType.TRANSFORMATION : RepositoryObjectType.JOB ) );
     } catch ( Exception e ) {
       return false;
     }
@@ -295,9 +310,12 @@ public class RepositoryBrowserController {
   }
 
   public RepositoryDirectory create( String parent, String name ) {
+    if ( hasDupeFolder( parent, name ) ) {
+      return null;
+    }
     try {
       RepositoryDirectoryInterface repositoryDirectoryInterface =
-        getRepository().createRepositoryDirectory( getRepository().findDirectory( parent ), name );
+        getRepository().createRepositoryDirectory( findDirectory( parent ), name );
       RepositoryDirectory repositoryDirectory = new RepositoryDirectory();
       repositoryDirectory.setName( repositoryDirectoryInterface.getName() );
       repositoryDirectory.setPath( repositoryDirectoryInterface.getPath() );
@@ -309,11 +327,28 @@ public class RepositoryBrowserController {
     }
   }
 
-  public boolean saveFile( String path, String name ) {
-    boolean result = checkSecurity();
+  /**
+   * Checks if there is a duplicate folder in a given directory (i.e. hidden folder)
+   *
+   * @param parent - Parent directory
+   * @param name   - Name of folder
+   * @return - true if the parent directory has a folder equal to name, false otherwise
+   */
+  private boolean hasDupeFolder( String parent, String name ) {
+    try {
+      RepositoryDirectoryInterface rdi = getRepository().findDirectory( parent ).findChild( name );
+      return rdi != null;
+    } catch ( Exception e ) {
+      System.out.println( e );
+    }
+    return false;
+  }
+
+  public boolean saveFile( String path, String name, String fileName, boolean override ) {
+    boolean result = checkForSecurityOrDupeIssues( path, name, fileName, override );
     if ( result ) {
       try {
-        RepositoryDirectoryInterface repositoryDirectoryInterface = getRepository().findDirectory( path );
+        RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
         getSpoon().getDisplay().asyncExec( () -> {
           try {
             EngineMetaInterface meta = getSpoon().getActiveMeta();
@@ -322,7 +357,7 @@ public class RepositoryBrowserController {
             getSpoon().saveToRepositoryConfirmed( meta );
             getSpoon().delegates.tabs.renameTabs();
           } catch ( Exception e ) {
-            System.out.println( e );
+            e.printStackTrace();
           }
         } );
       } catch ( Exception e ) {
@@ -332,32 +367,55 @@ public class RepositoryBrowserController {
     return result;
   }
 
+  public boolean checkForSecurityOrDupeIssues( String path, String name, String fileName, boolean override ) {
+    return checkSecurity() && !hasDupeFile( path, name, fileName, override );
+  }
+
+  /**
+   * Checks if there is a duplicate file in a given directory (i.e. hidden file)
+   *
+   * @param path     - Path to directory in which we are saving
+   * @param name     - Name of file to save
+   * @param fileName - Possible duplicate file name
+   * @param override - True is user wants override file, false otherwise
+   * @return - true if a duplicate file is found, false otherwise
+   */
+  private boolean hasDupeFile( String path, String name, String fileName, boolean override ) {
+    try {
+      RepositoryDirectoryInterface repositoryDirectoryInterface = getRepository().findDirectory( path );
+      EngineMetaInterface meta = getSpoon().getActiveMeta();
+      RepositoryObjectType type = "Trans".equals( meta.getFileType() )
+        ? RepositoryObjectType.TRANSFORMATION : RepositoryObjectType.JOB;
+      if ( getRepository().exists( name, repositoryDirectoryInterface, type ) ) {
+        return !override || !name.equals( fileName );
+      }
+    } catch ( Exception e ) {
+      System.out.println( e );
+    }
+    return false;
+  }
+
   private boolean checkSecurity() {
     EngineMetaInterface meta = getSpoon().getActiveMeta();
     return getSpoon().saveToRepositoryCheckSecurity( meta );
   }
 
-  public List<RepositoryDirectory> loadDirectoryTree() {
-    return loadDirectoryTree( "*.ktr|*.kjb" );
-  }
-
-  public List<RepositoryDirectory> loadDirectoryTree( String filter ) {
+  public RepositoryTree loadDirectoryTree() {
     if ( getRepository() != null ) {
-      RepositoryDirectoryInterface repositoryDirectoryInterface;
       try {
         if ( getRepository() instanceof RepositoryExtended ) {
-          repositoryDirectoryInterface = ( (RepositoryExtended) getRepository() )
-            .loadRepositoryDirectoryTree( "/", filter, -1, BooleanUtils
-              .isTrue( getRepository().getUserInfo().isAdmin() ), true, true );
+          rootDirectory = ( (RepositoryExtended) getRepository() ).loadRepositoryDirectoryTree( false );
         } else {
-          repositoryDirectoryInterface = getRepository().loadRepositoryDirectoryTree();
+          rootDirectory = getRepository().loadRepositoryDirectoryTree();
         }
-        List<RepositoryDirectory> repositoryDirectories = new LinkedList<>();
+        RepositoryTree repositoryTree = new RepositoryTree();
+        RepositoryDirectory repositoryDirectory = RepositoryDirectory.build( null, rootDirectory );
+        populateFolders( repositoryDirectory, rootDirectory );
         boolean isPentahoRepository =
-          getRepository().getRepositoryMeta().getId().equals( "PentahoEnterpriseRepository" );
-        int depth = isPentahoRepository ? -1 : 0;
-        createRepositoryDirectory( repositoryDirectoryInterface, repositoryDirectories, depth, null, filter );
-        return repositoryDirectories;
+          getRepository().getRepositoryMeta().getId().equals( PENTAHO_ENTERPRISE_REPOSITORY );
+        repositoryTree.setIncludeRoot( !isPentahoRepository );
+        repositoryTree.addChild( repositoryDirectory );
+        return repositoryTree;
       } catch ( Exception e ) {
         return null;
       }
@@ -365,180 +423,217 @@ public class RepositoryBrowserController {
     return null;
   }
 
-  public List<RepositoryFile> loadFiles( String id ) {
-    try {
-      List<RepositoryElementMetaInterface> repositoryElementMetaInterfaces =
-        getRepository().getJobAndTransformationObjects( () -> id, false );
-      List<RepositoryFile> repositoryFiles = new ArrayList<>();
-      for ( RepositoryObjectInterface repositoryObject : repositoryElementMetaInterfaces ) {
-        org.pentaho.di.repository.RepositoryObject ro = (org.pentaho.di.repository.RepositoryObject) repositoryObject;
-        RepositoryFile repositoryFile = new RepositoryFile();
-        repositoryFile.setObjectId( repositoryObject.getObjectId() );
-        repositoryFile.setName( repositoryObject.getName() );
-        repositoryFile.setType( ro.getObjectType().getTypeDescription() );
-        repositoryFile.setExtension( ro.getObjectType().getExtension() );
-        repositoryFile.setDate( ro.getModifiedDate() );
-        repositoryFile.setObjectId( ro.getObjectId() );
-        repositoryFile.setPath( ro.getRepositoryDirectory().getPath() );
-        repositoryFiles.add( repositoryFile );
-      }
-      return repositoryFiles;
-    } catch ( KettleException ke ) {
-      return Collections.emptyList();
-    }
-  }
-
-  public List<RepositoryFile> getRecentFiles() {
-    PropsUI props = PropsUI.getInstance();
-
-    List<RepositoryFile> repositoryFiles = new ArrayList<>();
-    IUser userInfo = Spoon.getInstance().rep.getUserInfo();
-    String repoAndUser = Spoon.getInstance().rep.getName() + ":" + ( userInfo != null ? userInfo.getLogin() : "" );
-    List<LastUsedFile> lastUsedFiles =
-      props.getLastUsedRepoFiles().getOrDefault( repoAndUser, Collections.emptyList() );
-
-    Calendar calendar = Calendar.getInstance();
-    calendar.add( Calendar.DATE, -30 );
-    Date dateBefore = calendar.getTime();
-
-    for ( int i = 0; i < lastUsedFiles.size(); i++ ) {
-      LastUsedFile lastUsedFile = lastUsedFiles.get( i );
-      if ( lastUsedFile.getLastOpened().before( dateBefore ) ) {
-        continue;
-      }
-      if ( lastUsedFile.getRepositoryName() != null && lastUsedFile.getRepositoryName()
-        .equals( Spoon.getInstance().rep.getName() ) ) {
-        RepositoryFile repositoryFile = new RepositoryFile();
-        final String index = String.valueOf( i );
-        repositoryFile.setObjectId( () -> index );
-        repositoryFile.setType( lastUsedFile.isTransformation() ? "transformation" : "job" );
-        repositoryFile.setName( lastUsedFile.getFilename() );
-        repositoryFile.setPath( lastUsedFile.getDirectory() );
-        repositoryFile.setDate( lastUsedFile.getLastOpened() );
-        repositoryFile.setRepository( lastUsedFile.getRepositoryName() );
-        repositoryFile.setUsername( lastUsedFile.getUsername() );
-        repositoryFiles.add( repositoryFile );
-      }
-    }
-
-    return repositoryFiles;
-  }
-
-  public void openRecentFile( String repo, String id ) {
-    getSpoon().getDisplay().asyncExec( () -> {
-      getSpoon().lastRepoFileSelect( repo, id );
-    } );
-  }
-
-  private void createRepositoryDirectory( RepositoryDirectoryInterface repositoryDirectoryInterface,
-                                          List<RepositoryDirectory> repositoryDirectories, int depth,
-                                          RepositoryDirectory parent, String filter ) {
-    RepositoryDirectory repositoryDirectory = new RepositoryDirectory();
-    repositoryDirectory.setName( repositoryDirectoryInterface.getName() );
-    repositoryDirectory.setPath( repositoryDirectoryInterface.getPath() );
-    repositoryDirectory.setObjectId( repositoryDirectoryInterface.getObjectId() );
-    repositoryDirectory.setDepth( depth );
-    repositoryDirectories.add( repositoryDirectory );
-    if ( parent != null ) {
-      repositoryDirectory.setParent( parent.getPath() );
-      parent.addChild( repositoryDirectory );
-    }
-    if ( !Utils.isEmpty( repositoryDirectoryInterface.getChildren() ) ) {
-      repositoryDirectory.setHasChildren( true );
-      for ( RepositoryDirectoryInterface child : repositoryDirectoryInterface.getChildren() ) {
-        createRepositoryDirectory( child, repositoryDirectories, depth + 1, repositoryDirectory, filter );
-      }
-    }
-    List<RepositoryElementMetaInterface> repositoryElementMetaInterfaces = new ArrayList<>();
-    if ( repositoryDirectoryInterface.getRepositoryObjects() == null ) {
+  private List<RepositoryElementMetaInterface> getRepositoryElements(
+    RepositoryDirectoryInterface repositoryDirectoryInterface ) {
+    List<RepositoryElementMetaInterface> elements = repositoryDirectoryInterface.getRepositoryObjects();
+    if ( elements == null ) {
       try {
-        repositoryElementMetaInterfaces =
-          getRepository().getJobAndTransformationObjects( repositoryDirectoryInterface.getObjectId(), false );
+        return getRepository().getJobAndTransformationObjects( repositoryDirectoryInterface.getObjectId(), false );
       } catch ( KettleException ke ) {
-        // Ignore for now
+        ke.printStackTrace();
       }
     } else {
-      repositoryElementMetaInterfaces = repositoryDirectoryInterface.getRepositoryObjects();
+      return elements;
     }
-    Date latestDate = null;
-    for ( RepositoryObjectInterface repositoryObject : repositoryElementMetaInterfaces ) {
-      org.pentaho.di.repository.RepositoryObject ro = (org.pentaho.di.repository.RepositoryObject) repositoryObject;
-      String extension = ro.getObjectType().getExtension();
-      if ( !Util.isFiltered( extension, filter ) ) {
+    return Collections.emptyList();
+  }
+
+  public boolean openRecentFile( String repo, String id ) {
+    // does the file exist?
+    if ( getSpoon().recentRepoFileExists( repo, id ) ) {
+      getSpoon().getDisplay().asyncExec( () -> {
+        getSpoon().lastRepoFileSelect( repo, id );
+      } );
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  private void populateFolders( RepositoryDirectory repositoryDirectory,
+                                RepositoryDirectoryInterface repositoryDirectoryInterface ) {
+    if ( getRepository() instanceof RepositoryExtended ) {
+      populateFoldersLazy( repositoryDirectory );
+    } else {
+      List<RepositoryDirectoryInterface> children = repositoryDirectoryInterface.getChildren();
+      repositoryDirectory.setHasChildren( !Utils.isEmpty( children ) );
+      if ( !Utils.isEmpty( children ) ) {
+        for ( RepositoryDirectoryInterface child : children ) {
+          repositoryDirectory.addChild( RepositoryDirectory.build( repositoryDirectory.getPath(), child ) );
+        }
+      }
+    }
+  }
+
+  private void populateFiles( RepositoryDirectory repositoryDirectory,
+                              RepositoryDirectoryInterface repositoryDirectoryInterface, String filter )
+    throws KettleException {
+    if ( getRepository() instanceof RepositoryExtended && !repositoryDirectory.getPath().equals( "/" ) ) {
+      populateFilesLazy( repositoryDirectory, filter );
+    } else {
+      Date latestDate = null;
+      for ( RepositoryObjectInterface repositoryObject : getRepositoryElements( repositoryDirectoryInterface ) ) {
+        org.pentaho.di.repository.RepositoryObject ro = (org.pentaho.di.repository.RepositoryObject) repositoryObject;
+        String extension = ro.getObjectType().getExtension();
+        if ( !Util.isFiltered( extension, filter ) ) {
+          RepositoryFile repositoryFile = RepositoryFile.build( ro );
+          repositoryDirectory.addChild( repositoryFile );
+        }
+        if ( latestDate == null || ro.getModifiedDate().after( latestDate ) ) {
+          latestDate = ro.getModifiedDate();
+        }
+      }
+      repositoryDirectory.setDate( latestDate );
+    }
+  }
+
+  public void populateFoldersLazy( RepositoryDirectory repositoryDirectory ) {
+    RepositoryRequest repositoryRequest = new RepositoryRequest( repositoryDirectory.getPath(), true, 1, null );
+    repositoryRequest.setTypes( RepositoryRequest.FILES_TYPE_FILTER.FOLDERS );
+    repositoryRequest.setIncludeSystemFolders( false );
+
+    RepositoryFileTree tree = getRepository().getUnderlyingRepository().getTree( repositoryRequest );
+
+    for ( RepositoryFileTree repositoryFileTree : tree.getChildren() ) {
+      org.pentaho.platform.api.repository2.unified.RepositoryFile repositoryFile = repositoryFileTree.getFile();
+      RepositoryDirectory repositoryDirectory1 =
+        RepositoryDirectory.build( repositoryDirectory.getPath(), repositoryFile, isAdmin() );
+      repositoryDirectory.addChild( repositoryDirectory1 );
+    }
+  }
+
+  public void populateFilesLazy( RepositoryDirectory repositoryDirectory, String filter ) {
+    RepositoryRequest repositoryRequest = new RepositoryRequest();
+    repositoryRequest.setPath( repositoryDirectory.getPath() );
+    repositoryRequest.setDepth( 1 );
+    repositoryRequest.setShowHidden( true );
+    repositoryRequest.setTypes( RepositoryRequest.FILES_TYPE_FILTER.FILES );
+    repositoryRequest.setChildNodeFilter( filter );
+
+    RepositoryFileTree tree = getRepository().getUnderlyingRepository().getTree( repositoryRequest );
+
+    for ( RepositoryFileTree repositoryFileTree : tree.getChildren() ) {
+      org.pentaho.platform.api.repository2.unified.RepositoryFile repositoryFile = repositoryFileTree.getFile();
+      RepositoryFile repositoryFile1 = RepositoryFile.build( repositoryDirectory.getPath(), repositoryFile, isAdmin() );
+      repositoryDirectory.addChild( repositoryFile1 );
+    }
+  }
+
+  public RepositoryDirectory loadFolders( String path ) {
+    RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
+    RepositoryDirectory repositoryDirectory = RepositoryDirectory.build( null, repositoryDirectoryInterface );
+    populateFolders( repositoryDirectory, repositoryDirectoryInterface );
+
+    return repositoryDirectory;
+  }
+
+  public RepositoryDirectory loadFiles( String path ) {
+    RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
+    RepositoryDirectory repositoryDirectory = RepositoryDirectory.build( null, repositoryDirectoryInterface );
+    try {
+      populateFiles( repositoryDirectory, repositoryDirectoryInterface, FILTER );
+    } catch ( KettleException ke ) {
+      ke.printStackTrace();
+    }
+
+    return repositoryDirectory;
+  }
+
+  public RepositoryDirectory loadFilesAndFolders( String path ) {
+    RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
+    RepositoryDirectory repositoryDirectory = RepositoryDirectory.build( null, repositoryDirectoryInterface );
+    populateFolders( repositoryDirectory, repositoryDirectoryInterface );
+    try {
+      populateFiles( repositoryDirectory, repositoryDirectoryInterface, FILTER );
+    } catch ( KettleException ke ) {
+      ke.printStackTrace();
+    }
+    return repositoryDirectory;
+  }
+
+  public List<org.pentaho.repo.model.RepositoryObject> search( String path, String filter ) {
+    RepositoryDirectoryInterface repositoryDirectoryInterface = findDirectory( path );
+    List<org.pentaho.repo.model.RepositoryObject> repositoryObjects = new ArrayList<>();
+    List<RepositoryObjectInterface> repositoryObjects1 = ( (RepositoryExtended) getRepository() ).getChildren(
+      repositoryDirectoryInterface.getObjectId().getId(), filter );
+    for ( RepositoryObjectInterface repositoryObject : repositoryObjects1 ) {
+      if ( repositoryObject instanceof RepositoryDirectoryInterface ) {
+        RepositoryDirectory repositoryDirectory = new RepositoryDirectory();
+        repositoryDirectory.setPath( path + "/" + repositoryObject.getName() );
+        repositoryDirectory.setName( repositoryObject.getName() );
+        repositoryDirectory.setObjectId( repositoryObject.getObjectId() );
+        repositoryObjects.add( repositoryDirectory );
+      } else {
         RepositoryFile repositoryFile = new RepositoryFile();
-        repositoryFile.setObjectId( repositoryObject.getObjectId() );
+        repositoryFile.setPath( path + "/" + repositoryObject.getName() );
         repositoryFile.setName( repositoryObject.getName() );
-        repositoryFile.setType( ro.getObjectType().getTypeDescription() );
-        repositoryFile.setExtension( extension );
-        repositoryFile.setDate( ro.getModifiedDate() );
-        repositoryFile.setObjectId( ro.getObjectId() );
-        repositoryFile.setPath( ro.getRepositoryDirectory().getPath() );
-        repositoryDirectory.addChild( repositoryFile );
-      }
-      if ( latestDate == null || ro.getModifiedDate().after( latestDate ) ) {
-        latestDate = ro.getModifiedDate();
+        repositoryFile.setType( ( (RepositoryObject) repositoryObject ).getObjectType() == RepositoryObjectType
+          .TRANSFORMATION ? TRANSFORMATION : JOB );
+        repositoryFile.setObjectId( repositoryObject.getObjectId() );
+        repositoryObjects.add( repositoryFile );
       }
     }
-    repositoryDirectory.setDate( latestDate );
+
+    return repositoryObjects;
+  }
+
+  public JSONArray getRecentSearches() {
+    try {
+      PropsUI props = PropsUI.getInstance();
+      String jsonString = props.getRecentSearches();
+      if ( jsonString != null ) {
+        JSONParser jsonParser = new JSONParser();
+        JSONObject jsonObject = (JSONObject) jsonParser.parse( jsonString );
+        return (JSONArray) jsonObject.get( getLogin() );
+      }
+    } catch ( Exception e ) {
+      // Log error in console
+    }
+    return new JSONArray();
+  }
+
+  public JSONArray storeRecentSearch( String recentSearch ) {
+    JSONArray recentSearches = getRecentSearches();
+    try {
+      if ( recentSearch == null || recentSearches.contains( recentSearch ) ) {
+        return recentSearches;
+      }
+      recentSearches.add( recentSearch );
+      if ( recentSearches.size() > 5 ) {
+        recentSearches.remove( 0 );
+      }
+
+      PropsUI props = PropsUI.getInstance();
+      String jsonValue = props.getRecentSearches();
+      JSONParser jsonParser = new JSONParser();
+      JSONObject jsonObject = jsonValue != null ? (JSONObject) jsonParser.parse( jsonValue ) : new JSONObject();
+      jsonObject.put( getLogin(), recentSearches );
+      props.setRecentSearches( jsonObject.toJSONString() );
+    } catch ( Exception e ) {
+      e.printStackTrace();
+    }
+
+    return recentSearches;
+  }
+
+  private RepositoryDirectoryInterface findDirectory( ObjectId objectId ) {
+    return rootDirectory.findDirectory( objectId );
   }
 
   private Spoon getSpoon() {
     return spoonSupplier.get();
   }
 
-  public LinkedList<String> getRecentSearches() {
-    LinkedList<String> recentSearches = new LinkedList<String>();
-    try {
-      PropsUI props = PropsUI.getInstance();
-      String jsonValue = props.getRecentSearches();
-      if ( jsonValue != null ) {
-        JSONParser jsonParser = new JSONParser();
-        JSONObject jsonObject = (JSONObject) jsonParser.parse( jsonValue );
-
-        String login = "file_repository_no_login";
-        if ( Spoon.getInstance().rep.getUserInfo() != null ) {
-          login = Spoon.getInstance().rep.getUserInfo().getLogin();
-        }
-        JSONArray jsonArray = (JSONArray) jsonObject.get( login );
-        CollectionUtils.addAll( recentSearches, jsonArray.toArray() );
-      }
-    } catch ( Exception e ) {
-      // Log error in console
+  private String getLogin() {
+    String login = "file_repository_no_login";
+    if ( getSpoon().rep.getUserInfo() != null ) {
+      login = getSpoon().rep.getUserInfo().getLogin();
     }
-    return recentSearches;
+    return login;
   }
 
-  public LinkedList<String> storeRecentSearch( String recentSearch ) {
-    LinkedList<String> recentSearches = getRecentSearches();
-    try {
-      if ( recentSearch == null || recentSearches.contains( recentSearch ) ) {
-        return recentSearches;
-      }
-      recentSearches.push( recentSearch );
-      if ( recentSearches.size() > 5 ) {
-        recentSearches.pollLast();
-      }
-
-      JSONArray jsonArray = new JSONArray();
-      CollectionUtils.addAll( jsonArray, recentSearches.toArray() );
-
-      PropsUI props = PropsUI.getInstance();
-      String jsonValue = props.getRecentSearches();
-      JSONParser jsonParser = new JSONParser();
-      JSONObject jsonObject = jsonValue != null ? (JSONObject) jsonParser.parse( jsonValue ) : new JSONObject();
-
-      String login = "file_repository_no_login";
-      if ( Spoon.getInstance().rep.getUserInfo() != null ) {
-        login = Spoon.getInstance().rep.getUserInfo().getLogin();
-      }
-
-      jsonObject.put( login, jsonArray );
-      props.setRecentSearches( jsonObject.toJSONString() );
-    } catch ( Exception e ) {
-      // Log error in console
-    }
-
-    return recentSearches;
+  private RepositoryDirectoryInterface findDirectory( String path ) {
+    return rootDirectory.findDirectory( path );
   }
 
   public RepositoryName getCurrentRepo() {
@@ -547,5 +642,9 @@ public class RepositoryBrowserController {
 
   private Repository getRepository() {
     return repository != null ? repository : spoonSupplier.get().rep;
+  }
+
+  private Boolean isAdmin() {
+    return getRepository().getUserInfo().isAdmin();
   }
 }

@@ -11,21 +11,22 @@
   <parent>
     <artifactId>pdi-assemblies</artifactId>
     <groupId>org.pentaho.di</groupId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <properties>
     <pdi-engine-spark.version>${project.version}</pdi-engine-spark.version>
     <rxjava.version>2.0.4</rxjava.version>
 
+    <pentaho-json.version>9.0.0.0-SNAPSHOT</pentaho-json.version>
     <pdi-spark-driver.version>${project.version}</pdi-spark-driver.version>
-    <pdi-osgi-bridge.version>${project.version}</pdi-osgi-bridge.version>
-    <pentaho-database-model.version>${project.version}</pentaho-database-model.version>
-    <pentaho-registry.version>${project.version}</pentaho-registry.version>
-    <pentaho-metaverse.version>${project.version}</pentaho-metaverse.version>
-    <platform.version>${project.version}</platform.version>
-    <pentaho-reporting.version>${project.version}</pentaho-reporting.version>
-    <pentaho-hadoop-shims-api.version>${project.version}</pentaho-hadoop-shims-api.version>
+    <pdi-osgi-bridge.version>9.0.0.0-SNAPSHOT</pdi-osgi-bridge.version>
+    <commons-database.version>9.0.0.0-SNAPSHOT</commons-database.version>
+    <pentaho-registry.version>9.0.0.0-SNAPSHOT</pentaho-registry.version>
+    <pentaho-metaverse.version>9.0.0.0-SNAPSHOT</pentaho-metaverse.version>
+    <platform.version>9.0.0.0-SNAPSHOT</platform.version>
+    <pentaho-reporting.version>9.0.0.0-SNAPSHOT</pentaho-reporting.version>
+    <pentaho-hadoop-shims-api.version>9.0.0.0-SNAPSHOT</pentaho-hadoop-shims-api.version>
 
     <!-- third party -->
     <org.apache.karaf.main.version>3.0.3</org.apache.karaf.main.version>
@@ -43,10 +44,7 @@
     <geronimo-servlet_3.0_spec.version>1.0</geronimo-servlet_3.0_spec.version>
     <slf4j-api.version>1.7.7</slf4j-api.version>
     <slf4j-log4j12.version>1.7.7</slf4j-log4j12.version>
-    <spring-aop.version>4.3.2.RELEASE</spring-aop.version>
-    <spring-beans.version>4.3.2.RELEASE</spring-beans.version>
-    <spring-context.version>4.3.2.RELEASE</spring-context.version>
-    <spring-security-core.version>4.2.3.RELEASE</spring-security-core.version>
+    <apache-log4j-extras>1.2.17</apache-log4j-extras>
     <webservices-api.version>2.3.1</webservices-api.version>
     <webservices-rt.version>2.3.1</webservices-rt.version>
     <asm.version>3.2</asm.version>
@@ -56,7 +54,6 @@
     <!-- jackson-databind depends on jackson-core and jackson-annotations
     so that this artifacts have the same version to prevent compile errors -->
     <fasterxml.jackson.core.version>2.9.2</fasterxml.jackson.core.version>
-    <jackson-xc.version>1.9.3</jackson-xc.version>
     <jersey-multipart.version>1.19.1</jersey-multipart.version>
     <mimepull.version>1.9.3</mimepull.version>
     <jsr311-api.version>1.1.1</jsr311-api.version>
@@ -68,6 +65,10 @@
     <databricks.version>4.0.0</databricks.version>
     <paho.version>1.2.0</paho.version>
     <bahir.version>2.1.1</bahir.version>
+
+    <!-- Spring -->
+    <springframework4.version>4.3.2.RELEASE</springframework4.version>
+    <springframework4-security.version>4.1.3.RELEASE</springframework4-security.version>
   </properties>
 
   <dependencies>
@@ -202,14 +203,19 @@
 
     <!-- Pentaho dependencies -->
     <dependency>
+      <groupId>org.pentaho</groupId>
+      <artifactId>json</artifactId>
+      <version>${pentaho-json.version}</version>
+    </dependency>
+    <dependency>
       <groupId>pentaho</groupId>
       <artifactId>pdi-osgi-bridge-core</artifactId>
       <version>${pdi-osgi-bridge.version}</version>
     </dependency>
     <dependency>
-      <groupId>pentaho</groupId>
-      <artifactId>pentaho-database-model</artifactId>
-      <version>${pentaho-database-model.version}</version>
+      <groupId>org.pentaho</groupId>
+      <artifactId>commons-database-model</artifactId>
+      <version>${commons-database.version}</version>
       <exclusions>
         <exclusion>
           <groupId>*</groupId>
@@ -218,7 +224,7 @@
       </exclusions>
     </dependency>
     <dependency>
-      <groupId>pentaho</groupId>
+      <groupId>org.pentaho</groupId>
       <artifactId>pentaho-registry</artifactId>
       <version>${pentaho-registry.version}</version>
       <exclusions>
@@ -500,7 +506,51 @@
       </exclusions>
     </dependency>
 
+    <!-- Spring -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-core</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-aop</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-web</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-beans</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context-support</artifactId>
+      <version>${springframework4.version}</version>
+    </dependency>
+
+    <!-- Spring Security -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-core</artifactId>
+      <version>${springframework4-security.version}</version>
+    </dependency>
+
     <!-- Other third-party dependencies -->
+    <dependency>
+      <groupId>log4j</groupId>
+      <artifactId>apache-log4j-extras</artifactId>
+      <version>${apache-log4j-extras}</version>
+    </dependency>
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -510,26 +560,6 @@
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
       <version>${slf4j-log4j12.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-aop</artifactId>
-      <version>${spring-aop.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-beans</artifactId>
-      <version>${spring-beans.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-context</artifactId>
-      <version>${spring-context.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.security</groupId>
-      <artifactId>spring-security-core</artifactId>
-      <version>${spring-security-core.version}</version>
     </dependency>
     <dependency>
       <groupId>org.glassfish.metro</groupId>
@@ -623,17 +653,6 @@
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${fasterxml.jackson.core.version}</version>
-      <exclusions>
-        <exclusion>
-          <groupId>*</groupId>
-          <artifactId>*</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-xc</artifactId>
-      <version>${jackson-xc.version}</version>
       <exclusions>
         <exclusion>
           <groupId>*</groupId>

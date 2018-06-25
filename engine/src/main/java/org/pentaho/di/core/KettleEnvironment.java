@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -33,6 +33,7 @@ import org.pentaho.di.core.logging.LogTablePluginType;
 import org.pentaho.di.core.plugins.CartePluginType;
 import org.pentaho.di.core.plugins.EnginePluginType;
 import org.pentaho.di.core.plugins.ImportRulePluginType;
+import org.pentaho.di.core.plugins.JobEntryDialogFragmentType;
 import org.pentaho.di.core.plugins.JobEntryPluginType;
 import org.pentaho.di.core.plugins.KettleLifecyclePluginType;
 import org.pentaho.di.core.plugins.LifecyclePluginType;
@@ -102,6 +103,7 @@ public class KettleEnvironment {
       StepDialogFragmentType.getInstance(),
       PartitionerPluginType.getInstance(),
       JobEntryPluginType.getInstance(),
+      JobEntryDialogFragmentType.getInstance(),
       LogTablePluginType.getInstance(),
       RepositoryPluginType.getInstance(),
       LifecyclePluginType.getInstance(),
@@ -234,5 +236,10 @@ public class KettleEnvironment {
         executor.setExecutingUser( userInfo.getLogin() );
       }
     }
+  }
+
+  public static void reset() {
+    KettleClientEnvironment.reset();
+    initialized.set( null );
   }
 }

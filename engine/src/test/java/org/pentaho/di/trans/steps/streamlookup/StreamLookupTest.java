@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -28,6 +28,8 @@ import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import org.junit.After;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import junit.framework.Assert;
 
@@ -68,6 +70,11 @@ public class StreamLookupTest {
     when( smh.logChannelInterfaceFactory.create( any(), any( LoggingObjectInterface.class ) ) ).thenReturn(
       smh.logChannelInterface );
     when( smh.trans.isRunning() ).thenReturn( true );
+  }
+
+  @After
+  public void cleanUp() {
+    smh.cleanUp();
   }
 
   private void convertDataToBinary( Object[][] data ) {
@@ -160,9 +167,9 @@ public class StreamLookupTest {
   private void doTest( boolean memoryPreservationActive, boolean binaryLookupStream, boolean binaryDataStream ) throws KettleException {
     StreamLookup step = new StreamLookup( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
     step.init( smh.initStepMetaInterface, smh.initStepDataInterface );
-    step.getInputRowSets().add( mockLookupRowSet( binaryLookupStream ) );
-    step.getInputRowSets().add( mockDataRowSet( binaryDataStream ) );
-    step.getOutputRowSets().add( new QueueRowSet() );
+    step.addRowSetToInputRowSets( mockLookupRowSet( binaryLookupStream ) );
+    step.addRowSetToInputRowSets( mockDataRowSet( binaryDataStream ) );
+    step.addRowSetToOutputRowSets( new QueueRowSet() );
 
     StreamLookupMeta meta = mockProcessRowMeta( memoryPreservationActive );
     StreamLookupData data = new StreamLookupData();

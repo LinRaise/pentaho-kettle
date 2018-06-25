@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -25,12 +25,15 @@ package org.pentaho.di.trans.steps.selectvalues;
 import static org.junit.Assert.assertEquals;
 
 import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.injection.BaseMetadataInjectionTest;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 
 public class SelectValuesMetaInjectionTest extends BaseMetadataInjectionTest<SelectValuesMeta> {
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
   @Before
   public void setup() {
     setup( new SelectValuesMeta() );
@@ -145,5 +148,15 @@ public class SelectValuesMetaInjectionTest extends BaseMetadataInjectionTest<Sel
 
     // TODO check field type plugins
     skipPropertyTest( "META_TYPE" );
+  }
+
+  //PDI-16932 test default values length and precision after injection
+  @Test
+  public void testDefaultValue() throws Exception {
+    ValueMetaInterface valueMeta = new ValueMetaString( "f" );
+    injector.setProperty( meta, "FIELD_NAME", setValue( valueMeta, "testValue" ), "f" );
+    nonTestedProperties.clear(); // we don't need to test other properties
+    assertEquals( SelectValuesMeta.UNDEFINED, meta.getSelectFields()[ 0 ].getLength() );
+    assertEquals( SelectValuesMeta.UNDEFINED, meta.getSelectFields()[ 0 ].getPrecision() );
   }
 }

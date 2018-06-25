@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -88,8 +88,8 @@ public class KettleLogStore {
 
         if ( maxLogTimeoutMinutes > 0 ) {
           long minTimeBoundary = new Date().getTime() - maxLogTimeoutMinutes * 60 * 1000;
-          // Remove all lines at once to prevent concurrent modification problems.
-          //
+
+          // Remove all the old lines.
           appender.removeBufferLinesBefore( minTimeBoundary );
         }
       }
@@ -126,7 +126,7 @@ public class KettleLogStore {
    *
    * @param maxSize
    *          the maximum size
-   * @param maxLogTimeoutHours
+   * @param maxLogTimeoutMinutes
    *          The maximum time that a log line times out in hours.
    */
   public static void init( int maxSize, int maxLogTimeoutMinutes ) {
@@ -266,5 +266,16 @@ public class KettleLogStore {
 
   public static boolean isInitialized() {
     return initialized.get();
+  }
+
+  public void reset() {
+    if ( initialized.compareAndSet( true, false ) ) {
+      appender = null;
+      if ( logCleanerTimer != null ) {
+        logCleanerTimer.cancel();
+        logCleanerTimer = null;
+      }
+      store = null;
+    }
   }
 }

@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -59,6 +59,7 @@ public class StringUtilTest extends TestCase {
   Map<String, String> createVariables1( String open, String close ) {
     Map<String, String> map = new HashMap<String, String>();
 
+    map.put( "NULL", null );
     map.put( "EMPTY", "" );
     map.put( "checkcase", "case1" );
     map.put( "CheckCase", "case2" );
@@ -87,6 +88,8 @@ public class StringUtilTest extends TestCase {
    */
   public void testSubstituteBasic() {
     Map<String, String> map = createVariables1( "${", "}" );
+    assertEquals( "|${BAD_KEY}|", StringUtil.substitute( "|${BAD_KEY}|", map, "${", "}" ) );
+    assertEquals( "|${NULL}|", StringUtil.substitute( "|${NULL}|", map, "${", "}" ) );
     assertEquals( "||", StringUtil.substitute( "|${EMPTY}|", map, "${", "}" ) );
     assertEquals( "|case1|", StringUtil.substitute( "|${checkcase}|", map, "${", "}" ) );
     assertEquals( "|case2|", StringUtil.substitute( "|${CheckCase}|", map, "${", "}" ) );
@@ -159,6 +162,34 @@ public class StringUtilTest extends TestCase {
     assertTrue( StringUtil.isVariable( "$[somename]" ) );
     assertFalse( StringUtil.isVariable( "somename" ) );
     assertFalse( StringUtil.isVariable( null ) );
+  }
 
+  public void testSafeToLowerCase() {
+    assertNull( StringUtil.safeToLowerCase( null ) );
+    assertEquals( "", StringUtil.safeToLowerCase( "" ) );
+    assertEquals( " ", StringUtil.safeToLowerCase( " " ) );
+    assertEquals( "abc123", StringUtil.safeToLowerCase( "abc123" ) );
+    assertEquals( "abc123", StringUtil.safeToLowerCase( "Abc123" ) );
+    assertEquals( "abc123", StringUtil.safeToLowerCase( "ABC123" ) );
+    assertNull( StringUtil.safeToLowerCase( new ToString() ) );
+    assertNull( StringUtil.safeToLowerCase( ( new ToString() ).toString() ) );
+    assertEquals( "abc123", StringUtil.safeToLowerCase( new ToString( "ABC123" ) ) );
+    assertEquals( "abc123", StringUtil.safeToLowerCase( ( new ToString( "ABC123" ) ).toString() ) );
+  }
+
+  class ToString {
+    private String string;
+
+    ToString() {
+    }
+
+    ToString( final String string ) {
+      this.string = string;
+    }
+
+    @Override
+    public String toString() {
+      return string;
+    }
   }
 }

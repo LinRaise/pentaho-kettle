@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,6 +22,8 @@
 
 package org.pentaho.di.trans.steps.textfileoutput;
 
+import static org.junit.Assert.assertEquals;
+
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -30,15 +32,20 @@ import java.util.Random;
 import java.util.UUID;
 
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.exception.KettleException;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
+import org.pentaho.di.core.variables.VariableSpace;
+import org.pentaho.di.core.variables.Variables;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 import org.pentaho.di.trans.steps.loadsave.LoadSaveTester;
 import org.pentaho.di.trans.steps.loadsave.validator.ArrayLoadSaveValidator;
 import org.pentaho.di.trans.steps.loadsave.validator.FieldLoadSaveValidator;
 
 public class TextFileOutputMetaTest {
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
 
   @BeforeClass
   public static void setUpBeforeClass() throws KettleException {
@@ -48,7 +55,7 @@ public class TextFileOutputMetaTest {
   public static List<String> getMetaAttributes() {
     return Arrays.asList( "separator", "enclosure", "enclosure_forced", "enclosure_fix_disabled", "header", "footer",
       "format", "compression", "encoding", "endedLine", "fileNameInField", "fileNameField",
-      "create_parent_folder", "fileName", "is_command", "servlet_output", "do_not_open_new_file_init",
+      "create_parent_folder", "fileName", "servlet_output", "do_not_open_new_file_init",
       "extention", "append", "split", "haspartno", "add_date", "add_time", "SpecifyFormat", "date_time_format",
       "add_to_result_filenames", "pad", "fast_dump", "splitevery", "OutputFields" );
   }
@@ -69,7 +76,6 @@ public class TextFileOutputMetaTest {
     getterMap.put( "fileNameField", "getFileNameField" );
     getterMap.put( "create_parent_folder", "isCreateParentFolder" );
     getterMap.put( "fileName", "getFileName" );
-    getterMap.put( "is_command", "isFileAsCommand" );
     getterMap.put( "servlet_output", "isServletOutput" );
     getterMap.put( "do_not_open_new_file_init", "isDoNotOpenNewFileInit" );
     getterMap.put( "extention", "getExtension" );
@@ -104,7 +110,6 @@ public class TextFileOutputMetaTest {
     setterMap.put( "fileNameField", "setFileNameField" );
     setterMap.put( "create_parent_folder", "setCreateParentFolder" );
     setterMap.put( "fileName", "setFilename" );
-    setterMap.put( "is_command", "setFileAsCommand" );
     setterMap.put( "servlet_output", "setServletOutput" );
     setterMap.put( "do_not_open_new_file_init", "setDoNotOpenNewFileInit" );
     setterMap.put( "extention", "setExtension" );
@@ -142,6 +147,21 @@ public class TextFileOutputMetaTest {
         getGetterMap(), getSetterMap(), getAttributeValidators(), getTypeValidators() );
 
     loadSaveTester.testSerialization();
+  }
+
+  @Test
+  public void testVarReplaceSplit() throws Exception {
+    TextFileOutputMeta meta = new TextFileOutputMeta();
+    meta.setDefault();
+    meta.setSplitEveryRows( "${splitVar}" );
+    VariableSpace varSpace = new Variables();
+    assertEquals( 0, meta.getSplitEvery( varSpace ) );
+    String fileName = meta.buildFilename( "file", "txt", varSpace, 0, null, 3, false, meta );
+    assertEquals( "file.txt", fileName );
+    varSpace.setVariable( "splitVar", "2" );
+    assertEquals( 2, meta.getSplitEvery( varSpace ) );
+    fileName = meta.buildFilename( "file", "txt", varSpace, 0, null, 3, false, meta );
+    assertEquals( "file_3.txt", fileName );
   }
 
   public static class TextFileFieldLoadSaveValidator implements FieldLoadSaveValidator<TextFileField> {

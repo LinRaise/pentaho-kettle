@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -30,9 +30,11 @@ import static org.mockito.Mockito.when;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.KettleEnvironment;
@@ -46,6 +48,7 @@ import org.pentaho.di.core.row.ValueDataUtil;
 import org.pentaho.di.core.row.ValueMetaInterface;
 import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaNumber;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 import org.pentaho.di.trans.step.RowAdapter;
 import org.pentaho.di.trans.steps.mock.StepMockHelper;
 
@@ -56,6 +59,7 @@ import org.pentaho.di.trans.steps.mock.StepMockHelper;
  * @see Calculator
  */
 public class CalculatorBackwardCompatibilityUnitTest {
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
   private StepMockHelper<CalculatorMeta, CalculatorData> smh;
 
   private static final String SYS_PROPERTY_ROUND_2_MODE = "ROUND_2_MODE";
@@ -123,6 +127,11 @@ public class CalculatorBackwardCompatibilityUnitTest {
     when( smh.trans.isRunning() ).thenReturn( true );
   }
 
+  @After
+  public void cleanUp() {
+    smh.cleanUp();
+  }
+
   @Test
   public void testRound() throws KettleException {
     assertRound( 1.0, 1.2 );
@@ -148,7 +157,7 @@ public class CalculatorBackwardCompatibilityUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -201,7 +210,7 @@ public class CalculatorBackwardCompatibilityUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -251,7 +260,7 @@ public class CalculatorBackwardCompatibilityUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 
@@ -304,7 +313,7 @@ public class CalculatorBackwardCompatibilityUnitTest {
     inputRowSet.setRowMeta( inputRowMeta );
 
     Calculator calculator = new Calculator( smh.stepMeta, smh.stepDataInterface, 0, smh.transMeta, smh.trans );
-    calculator.getInputRowSets().add( inputRowSet );
+    calculator.addRowSetToInputRowSets( inputRowSet );
     calculator.setInputRowMeta( inputRowMeta );
     calculator.init( smh.initStepMetaInterface, smh.initStepDataInterface );
 

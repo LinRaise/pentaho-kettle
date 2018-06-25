@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,14 +22,9 @@
 
 package org.pentaho.di.trans.steps.jobexecutor;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.pentaho.di.core.CheckResult;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
-import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.ObjectLocationSpecificationMethod;
 import org.pentaho.di.core.database.DatabaseMeta;
 import org.pentaho.di.core.exception.KettleException;
@@ -45,6 +40,7 @@ import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaNone;
 import org.pentaho.di.core.row.value.ValueMetaString;
 import org.pentaho.di.core.util.CurrentDirectoryResolver;
+import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.xml.XMLHandler;
 import org.pentaho.di.i18n.BaseMessages;
@@ -64,6 +60,7 @@ import org.pentaho.di.resource.ResourceEntry;
 import org.pentaho.di.resource.ResourceEntry.ResourceType;
 import org.pentaho.di.resource.ResourceNamingInterface;
 import org.pentaho.di.resource.ResourceReference;
+import org.pentaho.di.trans.StepWithMappingMeta;
 import org.pentaho.di.trans.Trans;
 import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.TransMeta.TransformationType;
@@ -80,6 +77,10 @@ import org.pentaho.di.trans.step.errorhandling.StreamInterface;
 import org.pentaho.di.trans.step.errorhandling.StreamInterface.StreamType;
 import org.pentaho.metastore.api.IMetaStore;
 import org.w3c.dom.Node;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Meta-data for the Job executor step.
@@ -645,7 +646,7 @@ public class JobExecutorMeta extends BaseStepMeta implements StepMetaInterface, 
             }
           }
           if ( mappingJobMeta == null ) {
-            mappingJobMeta = new JobMeta( tmpSpace, realFilename, rep, metaStore, null );
+            mappingJobMeta = new JobMeta( null, realFilename, rep, metaStore, null );
             LogChannel.GENERAL.logDetailed( "Loading job from repository", "Job was loaded from XML file ["
               + realFilename + "]" );
           }
@@ -679,11 +680,11 @@ public class JobExecutorMeta extends BaseStepMeta implements StepMetaInterface, 
         } else {
           // rep is null, let's try loading by filename
           try {
-            mappingJobMeta = new JobMeta( tmpSpace, realDirectory + "/" + realJobname, rep, metaStore, null );
+            mappingJobMeta = new JobMeta( null, realDirectory + "/" + realJobname, rep, metaStore, null );
           } catch ( KettleException ke ) {
             try {
               // add .kjb extension and try again
-              mappingJobMeta = new JobMeta( tmpSpace,
+              mappingJobMeta = new JobMeta( null,
                   realDirectory + "/" + realJobname + "." + Const.STRING_JOB_DEFAULT_EXT, rep, metaStore, null );
             } catch ( KettleException ke2 ) {
               throw new KettleException( BaseMessages.getString(
@@ -703,8 +704,15 @@ public class JobExecutorMeta extends BaseStepMeta implements StepMetaInterface, 
     }
 
     // Pass some important information to the mapping transformation metadata:
-    //
-    mappingJobMeta.copyVariablesFrom( space );
+
+    //  When the child parameter does exist in the parent parameters, overwrite the child parameter by the
+    // parent parameter.
+    StepWithMappingMeta.replaceVariableValues( mappingJobMeta, space );
+    if ( executorMeta.getParameters().isInheritingAllVariables() ) {
+      // All other parent parameters need to get copied into the child parameters  (when the 'Inherit all
+      // variables from the transformation?' option is checked)
+      StepWithMappingMeta.addMissingVariables( mappingJobMeta, space );
+    }
     mappingJobMeta.setRepository( rep );
     mappingJobMeta.setMetaStore( metaStore );
     mappingJobMeta.setFilename( mappingJobMeta.getFilename() );
@@ -844,6 +852,7 @@ public class JobExecutorMeta extends BaseStepMeta implements StepMetaInterface, 
 
   @Override
   public StepIOMetaInterface getStepIOMeta() {
+    StepIOMetaInterface ioMeta = super.getStepIOMeta( false );
     if ( ioMeta == null ) {
 
       ioMeta = new StepIOMeta( true, true, true, false, true, false );
@@ -854,6 +863,7 @@ public class JobExecutorMeta extends BaseStepMeta implements StepMetaInterface, 
         PKG, "JobExecutorMeta.ResultRowsStream.Description" ), StreamIcon.TARGET, null ) );
       ioMeta.addStream( new Stream( StreamType.TARGET, resultFilesTargetStepMeta, BaseMessages.getString(
         PKG, "JobExecutorMeta.ResultFilesStream.Description" ), StreamIcon.TARGET, null ) );
+      setStepIOMeta( ioMeta );
     }
     return ioMeta;
   }

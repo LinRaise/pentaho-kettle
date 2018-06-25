@@ -15,9 +15,11 @@
       // overrides just for this app
       require.config({
         paths: {
-          "angular-i18n": "/angular-i18n/${angular-i18n.version}"
-        },
-        shim: {
+          "pentaho": "${project.artifactId}/${project.version}/pentaho",
+          "angular-i18n": "/angular-i18n/${angular-i18n.version}",
+          "css": "/require-css/${require-css.version}/css",
+          "text": "/requirejs-text/${requirejs-text.version}/text",
+          "dojo": "/dojo/${dojo.version}"
         }
       });
 
@@ -69,7 +71,7 @@
     document.body.addEventListener("keydown", function(event) {
       var arrowNavigation = (event.altKey || event.metaKey) && (event.keyCode === 37 || event.keyCode === 39); // ALT+left arrow; ALT+right arrow; cmd+left arrow; cmd+right arrow
       var backNavigation = event.shiftKey && event.keyCode === 8 ||
-          event.keyCode === 8 && event.srcElement.tagName !== "INPUT"; // backspace (except input/textarea tags); SHIFT+backspace
+          event.keyCode === 8 && event.srcElement.tagName !== "INPUT" && event.srcElement.tagName !== "TEXTAREA"; // backspace (except input/textarea tags); SHIFT+backspace
       var reloadContent = event.ctrlKey && event.keyCode === 116 || (event.ctrlKey || event.metaKey) && event.keyCode === 82 || event.keyCode === 116; // CTRL+F5; CTRL+r; cmd+r; F5
       var zoomContent = event.ctrlKey && (event.keyCode === 107 || event.keyCode === 109 || event.keyCode === 187 || event.keyCode === 189); // CTRL++; CTRL+-
 

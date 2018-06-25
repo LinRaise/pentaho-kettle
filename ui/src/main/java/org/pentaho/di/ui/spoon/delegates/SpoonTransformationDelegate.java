@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -158,6 +158,7 @@ public class SpoonTransformationDelegate extends SpoonDelegate {
       boolean showLocation = false;
       boolean addTab = true;
       String tabName = spoon.delegates.tabs.makeTabName( transMeta, showLocation );
+
       TabMapEntry tabEntry = spoon.delegates.tabs.findTabMapEntry( tabName, ObjectType.TRANSFORMATION_GRAPH );
       if ( tabEntry != null ) {
         // We change the already loaded transformation to also show the location.
@@ -167,6 +168,7 @@ public class SpoonTransformationDelegate extends SpoonDelegate {
         // Try again, including the location of the object...
         //
         tabName = spoon.delegates.tabs.makeTabName( transMeta, showLocation );
+
         TabMapEntry exactSameEntry = spoon.delegates.tabs.findTabMapEntry( tabName, ObjectType.TRANSFORMATION_GRAPH );
         if ( exactSameEntry != null ) {
           // Already loaded, simply select the tab item in question...
@@ -185,6 +187,9 @@ public class SpoonTransformationDelegate extends SpoonDelegate {
       if ( addTab ) {
         transGraph = new TransGraph( spoon.tabfolder.getSwtTabset(), spoon, transMeta );
         PropsUI props = PropsUI.getInstance();
+        if ( tabName.length() >= getMaxTabLength() ) {
+          tabName = new StringBuilder().append( tabName.substring( 0, getMaxTabLength() ) ).append( "\u2026" ).toString();
+        }
         TabItem tabItem = new TabItem( spoon.tabfolder, tabName, tabName, props.getSashWeights() );
         String toolTipText =
             BaseMessages.getString( PKG, "Spoon.TabTrans.Tooltip", spoon.delegates.tabs.makeTabName( transMeta,
@@ -860,6 +865,24 @@ public class SpoonTransformationDelegate extends SpoonDelegate {
     if ( execConfigAnswer ) {
       TransGraph activeTransGraph = spoon.getActiveTransGraph();
       activeTransGraph.transLogDelegate.addTransLog();
+
+      // Set the named parameters
+      Map<String, String> paramMap = executionConfiguration.getParams();
+      for ( String key : paramMap.keySet() ) {
+        transMeta.setParameterValue( key, Const.NVL( paramMap.get( key ), "" ) );
+      }
+      transMeta.activateParameters();
+
+      // Set the log level
+      //
+      if ( executionConfiguration.getLogLevel() != null ) {
+        transMeta.setLogLevel( executionConfiguration.getLogLevel() );
+      }
+
+      // Set the run options
+      transMeta.setClearingLog( executionConfiguration.isClearingLog() );
+      transMeta.setSafeModeEnabled( executionConfiguration.isSafeModeEnabled() );
+      transMeta.setGatheringMetrics( executionConfiguration.isGatheringMetrics() );
 
       ExtensionPointHandler.callExtensionPoint( log, KettleExtensionPoint.SpoonTransMetaExecutionStart.id, transMeta );
       ExtensionPointHandler.callExtensionPoint( log, KettleExtensionPoint.SpoonTransExecutionConfiguration.id,

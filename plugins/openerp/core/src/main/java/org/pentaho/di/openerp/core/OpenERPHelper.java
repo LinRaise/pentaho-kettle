@@ -12,7 +12,8 @@
  *   You should have received a copy of the GNU Lesser General Public License
  *   along with this software.  If not, see <http://www.gnu.org/licenses/>.
  *
- *   Copyright 2011 De Bortoli Wines Pty Limited (Australia)
+ *   Portions Copyright 2011 De Bortoli Wines Pty Limited (Australia)
+ *   Portions Copyright 2011 - 2018 Hitachi Vantara
  */
 
 package org.pentaho.di.openerp.core;
@@ -24,6 +25,7 @@ import java.util.Collections;
 import org.apache.xmlrpc.XmlRpcException;
 import org.pentaho.di.core.database.DatabaseFactoryInterface;
 import org.pentaho.di.core.database.DatabaseMeta;
+import org.pentaho.di.core.database.DatabaseTestResults;
 import org.pentaho.di.core.row.ValueMetaInterface;
 
 import com.debortoliwines.openerp.api.FilterCollection;
@@ -265,5 +267,9 @@ public class OpenERPHelper implements DatabaseFactoryInterface {
 
     return mappings;
 
+  }
+
+  public DatabaseTestResults getConnectionTestResults( DatabaseMeta databaseMeta ) {
+    return null;
   }
 }

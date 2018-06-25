@@ -1,5 +1,5 @@
 /*!
- * Copyright 2016 - 2017 Hitachi Vantara.  All rights reserved.
+ * Copyright 2016 - 2018 Hitachi Vantara.  All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -78,6 +78,30 @@ public class LazyUnifiedRepositoryDirectory extends RepositoryDirectory {
     return absolutePath.substring( 0, parentEndIndex );
   }
 
+  @Override public RepositoryDirectory findDirectory( ObjectId id_directory ) {
+    RepositoryFile file = repository.getFileById( id_directory.getId() );
+    if ( file == null || !file.isFolder() ) {
+      return null;
+    }
+    if ( isRoot() && RepositoryDirectory.DIRECTORY_SEPARATOR.equals( file.getPath() ) ) {
+      return this;
+    }
+
+    // Verifies if this is the parent directory of file and if so passes this as parent argument
+    String parentPath = getParentPath( file.getPath() );
+    if ( self.getPath().endsWith( RepositoryDirectory.DIRECTORY_SEPARATOR ) ) {
+      if ( parentPath.equals( self.getPath().substring( 0, self.getPath().length() - 1 ) ) ) {
+        return new LazyUnifiedRepositoryDirectory( file, this, repository, registry );
+      }
+    } else {
+      if ( parentPath.equals( self.getPath() ) ) {
+        return new LazyUnifiedRepositoryDirectory( file, this, repository, registry );
+      }
+    }
+
+    return new LazyUnifiedRepositoryDirectory( file, findDirectory( parentPath ), repository, registry );
+  }
+
   @Override public RepositoryDirectory findDirectory( String path ) {
     if ( StringUtils.isEmpty( path ) ) {
       return null;
@@ -146,8 +170,7 @@ public class LazyUnifiedRepositoryDirectory extends RepositoryDirectory {
 
   @Override public List<RepositoryElementMetaInterface> getRepositoryObjects() {
     if ( fileChildren == null ) {
-
-      fileChildren = new ArrayList<RepositoryElementMetaInterface>();
+      fileChildren = new ArrayList<>();
       synchronized ( fileChildren ) {
 
         UnifiedRepositoryLockService lockService =
@@ -184,6 +207,7 @@ public class LazyUnifiedRepositoryDirectory extends RepositoryDirectory {
   @Override public void setRepositoryObjects( List<RepositoryElementMetaInterface> list ) {
     synchronized ( fileChildren ) {
       fileChildren.clear();
+      fileChildren = new ArrayList<>();
       fileChildren.addAll( list );
     }
   }
@@ -250,11 +274,13 @@ public class LazyUnifiedRepositoryDirectory extends RepositoryDirectory {
     if ( this.fileChildren != null ) {
       synchronized ( fileChildren ) {
         this.fileChildren.clear();
+        this.fileChildren = null;
       }
     }
     if ( this.subdirectories != null ) {
       synchronized ( subdirectories ) {
         this.subdirectories.clear();
+        this.subdirectories = null;
       }
     }
   }

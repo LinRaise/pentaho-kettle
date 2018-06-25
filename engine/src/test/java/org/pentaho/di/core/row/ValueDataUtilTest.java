@@ -38,9 +38,11 @@ import java.util.Arrays;
 
 import org.apache.commons.lang.StringUtils;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.pentaho.di.core.exception.KettleFileNotFoundException;
 import org.pentaho.di.core.util.Utils;
 import org.pentaho.di.core.KettleEnvironment;
 import org.pentaho.di.core.exception.KettleException;
@@ -50,9 +52,11 @@ import org.pentaho.di.core.row.value.ValueMetaBinary;
 import org.pentaho.di.core.row.value.ValueMetaFactory;
 import org.pentaho.di.core.row.value.ValueMetaInteger;
 import org.pentaho.di.core.row.value.ValueMetaString;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
 import org.pentaho.di.trans.steps.calculator.CalculatorMetaFunction;
 
 public class ValueDataUtilTest {
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
   private static String yyyy_MM_dd = "yyyy-MM-dd";
 
   @BeforeClass
@@ -193,6 +197,330 @@ public class ValueDataUtilTest {
     assertEquals( longValue, ValueDataUtil.plus( new ValueMetaInteger(), longValue, new ValueMetaString(),
         StringUtils.EMPTY ) );
 
+  }
+
+  @Test
+  public void checksumTest() {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), path, "MD5" );
+    assertEquals( "098f6bcd4621d373cade4e832627b4f6", checksum );
+  }
+
+  @Test
+  public void checksumMissingFileTest() {
+    String nonExistingFile = "nonExistingFile";
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), nonExistingFile, "MD5" );
+    assertNull( checksum );
+  }
+
+  @Test
+  public void checksumNullPathTest() {
+    String nonExistingFile = "nonExistingFile";
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), nonExistingFile, "MD5" );
+    assertNull( checksum );
+  }
+
+  @Test
+  public void checksumWithFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), path, "MD5", true );
+    assertEquals( "098f6bcd4621d373cade4e832627b4f6", checksum );
+  }
+
+  @Test
+  public void checksumWithoutFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), path, "MD5", false );
+    assertEquals( "098f6bcd4621d373cade4e832627b4f6", checksum );
+  }
+
+  @Test
+  public void checksumNoFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingFile = "nonExistingFile";
+    String checksum = ValueDataUtil.createChecksum( new ValueMetaString(), nonExistingFile, "MD5", false );
+    assertNull( checksum );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void checksumFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.createChecksum( new ValueMetaString(), nonExistingPath, "MD5", true );
+  }
+
+  @Test
+  public void checksumNullPathNoFailTest() throws KettleFileNotFoundException {
+    assertNull( ValueDataUtil.createChecksum( new ValueMetaString(), null, "MD5", false ) );
+  }
+
+  @Test
+  public void checksumNullPathFailTest() throws KettleFileNotFoundException {
+    assertNull( ValueDataUtil.createChecksum( new ValueMetaString(), null, "MD5", true ) );
+  }
+
+  @Test
+  public void checksumCRC32Test() {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    long checksum = ValueDataUtil.ChecksumCRC32( new ValueMetaString(), path );
+    assertEquals( 3632233996l, checksum );
+  }
+
+  @Test
+  public void checksumCRC32MissingFileTest() {
+    String nonExistingFile = "nonExistingFile";
+    long checksum = ValueDataUtil.ChecksumCRC32( new ValueMetaString(), nonExistingFile );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumCRC32NullPathTest() throws Exception {
+    String nonExistingFile = "nonExistingFile";
+    long checksum = ValueDataUtil.ChecksumCRC32( new ValueMetaString(), nonExistingFile );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumCRC32WithoutFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    long checksum = ValueDataUtil.checksumCRC32( new ValueMetaString(), path, false );
+    assertEquals( 3632233996l, checksum );
+  }
+
+  @Test
+  public void checksumCRC32NoFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    long checksum = ValueDataUtil.checksumCRC32( new ValueMetaString(), nonExistingPath, false );
+    assertEquals( 0, checksum );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void checksumCRC32FailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.checksumCRC32( new ValueMetaString(), nonExistingPath, true );
+  }
+
+  @Test
+  public void checksumCRC32NullPathNoFailTest() throws KettleFileNotFoundException {
+    long checksum = ValueDataUtil.checksumCRC32( new ValueMetaString(), null, false );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumCRC32NullPathFailTest() throws KettleFileNotFoundException {
+    long checksum = ValueDataUtil.checksumCRC32( new ValueMetaString(), null, true );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumAdlerTest() {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    long checksum = ValueDataUtil.ChecksumAdler32( new ValueMetaString(), path );
+    assertEquals( 73204161L, checksum );
+  }
+
+  @Test
+  public void checksumAdlerMissingFileTest() {
+    String nonExistingFile = "nonExistingFile";
+    long checksum = ValueDataUtil.ChecksumAdler32( new ValueMetaString(), nonExistingFile );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumAdlerNullPathTest() {
+    String nonExistingFile = "nonExistingFile";
+    long checksum = ValueDataUtil.ChecksumAdler32( new ValueMetaString(), nonExistingFile );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumAdlerWithFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    long checksum = ValueDataUtil.checksumAdler32( new ValueMetaString(), path, true );
+    assertEquals( 73204161L, checksum );
+  }
+
+  @Test
+  public void checksumAdlerWithoutFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    long checksum = ValueDataUtil.checksumAdler32( new ValueMetaString(), path, false );
+    assertEquals( 73204161L, checksum );
+  }
+
+  @Test
+  public void checksumAdlerNoFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    long checksum = ValueDataUtil.checksumAdler32( new ValueMetaString(), nonExistingPath, false );
+    assertEquals( 0, checksum );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void checksumAdlerFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.checksumAdler32( new ValueMetaString(), nonExistingPath, true );
+  }
+
+  @Test
+  public void checksumAdlerNullPathNoFailTest() throws KettleFileNotFoundException {
+    long checksum = ValueDataUtil.checksumAdler32( new ValueMetaString(), null, false );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void checksumAdlerNullPathFailTest() throws KettleFileNotFoundException {
+    long checksum = ValueDataUtil.checksumAdler32( new ValueMetaString(), null, true );
+    assertEquals( 0, checksum );
+  }
+
+  @Test
+  public void xmlFileWellFormedTest() {
+    String xmlFilePath = getClass().getResource( "xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), xmlFilePath );
+    assertTrue( wellFormed );
+  }
+
+  @Test
+  public void xmlFileBadlyFormedTest() {
+    String invalidXmlFilePath = getClass().getResource( "invalid-xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), invalidXmlFilePath );
+    assertFalse( wellFormed );
+  }
+
+  @Test
+  public void xmlFileWellFormedWithFailIfNoFileTest() throws KettleFileNotFoundException {
+    String xmlFilePath = getClass().getResource( "xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), xmlFilePath, true );
+    assertTrue( wellFormed );
+  }
+
+  @Test
+  public void xmlFileWellFormedWithoutFailIfNoFileTest() throws KettleFileNotFoundException {
+    String xmlFilePath = getClass().getResource( "xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), xmlFilePath, false );
+    assertTrue( wellFormed );
+  }
+
+  @Test
+  public void xmlFileBadlyFormedWithFailIfNoFileTest() throws KettleFileNotFoundException {
+    String invalidXmlFilePath = getClass().getResource( "invalid-xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), invalidXmlFilePath, true );
+    assertFalse( wellFormed );
+  }
+
+  @Test
+  public void xmlFileBadlyFormedWithNoFailIfNoFileTest() throws KettleFileNotFoundException {
+    String invalidXmlFilePath = getClass().getResource( "invalid-xml-sample.xml" ).getPath();
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), invalidXmlFilePath, false );
+    assertFalse( wellFormed );
+  }
+
+  @Test
+  public void xmlFileWellFormedNoFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), nonExistingPath, false );
+    assertFalse( wellFormed );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void xmlFileWellFormedFailIfNoFileTest() throws KettleFileNotFoundException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), nonExistingPath, true );
+  }
+
+  @Test
+  public void xmlFileWellFormedNullPathNoFailTest() throws KettleFileNotFoundException {
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), null, false );
+    assertFalse( wellFormed );
+  }
+
+  @Test
+  public void xmlFileWellFormedNullPathFailTest() throws KettleFileNotFoundException {
+    boolean wellFormed = ValueDataUtil.isXMLFileWellFormed( new ValueMetaString(), null, true );
+    assertFalse( wellFormed );
+  }
+
+  @Test
+  public void loadFileContentInBinary() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    byte[] content = ValueDataUtil.loadFileContentInBinary( new ValueMetaString(), path, true );
+    assertTrue( Arrays.equals( "test".getBytes(), content ) );
+  }
+
+  @Test
+  public void loadFileContentInBinaryNoFailIfNoFileTest() throws Exception {
+    String nonExistingPath = "nonExistingPath";
+    assertNull( ValueDataUtil.loadFileContentInBinary( new ValueMetaString(), nonExistingPath, false ) );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void loadFileContentInBinaryFailIfNoFileTest() throws KettleFileNotFoundException, KettleValueException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.loadFileContentInBinary( new ValueMetaString(), nonExistingPath, true );
+  }
+
+  @Test
+  public void loadFileContentInBinaryNullPathNoFailTest() throws Exception {
+    assertNull( ValueDataUtil.loadFileContentInBinary( new ValueMetaString(), null, false ) );
+  }
+
+  @Test
+  public void loadFileContentInBinaryNullPathFailTest() throws KettleFileNotFoundException, KettleValueException {
+    assertNull( ValueDataUtil.loadFileContentInBinary( new ValueMetaString(), null, true ) );
+  }
+
+  @Test
+  public void getFileEncodingTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), path );
+    assertEquals( "US-ASCII", encoding );
+  }
+
+  @Test( expected = KettleValueException.class )
+  public void getFileEncodingMissingFileTest() throws KettleValueException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.getFileEncoding( new ValueMetaString(), nonExistingPath );
+  }
+
+  @Test
+  public void getFileEncodingNullPathTest() throws Exception {
+    assertNull( ValueDataUtil.getFileEncoding( new ValueMetaString(), null ) );
+  }
+
+  @Test
+  public void getFileEncodingWithFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), path, true );
+    assertEquals( "US-ASCII", encoding );
+  }
+
+  @Test
+  public void getFileEncodingWithoutFailIfNoFileTest() throws Exception {
+    String path = getClass().getResource( "txt-sample.txt" ).getPath();
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), path, false );
+    assertEquals( "US-ASCII", encoding );
+  }
+
+  @Test
+  public void getFileEncodingNoFailIfNoFileTest() throws Exception {
+    String nonExistingPath = "nonExistingPath";
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), nonExistingPath, false );
+    assertNull( encoding );
+  }
+
+  @Test( expected = KettleFileNotFoundException.class )
+  public void getFileEncodingFailIfNoFileTest() throws KettleFileNotFoundException, KettleValueException {
+    String nonExistingPath = "nonExistingPath";
+    ValueDataUtil.getFileEncoding( new ValueMetaString(), nonExistingPath, true );
+  }
+
+  @Test
+  public void getFileEncodingNullPathNoFailTest() throws Exception {
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), null, false );
+    assertNull( encoding );
+  }
+
+  @Test
+  public void getFileEncodingNullPathFailTest() throws KettleFileNotFoundException, KettleValueException {
+    String encoding = ValueDataUtil.getFileEncoding( new ValueMetaString(), null, true );
+    assertNull( encoding );
   }
 
   @Test
@@ -727,6 +1055,13 @@ public class ValueDataUtilTest {
 
     assertEquals( new BigDecimal( "-15.184" ),
       calculate( "-144.144", "16.12", ValueMetaInterface.TYPE_BIGNUMBER, CalculatorMetaFunction.CALC_REMAINDER ) );
+    assertEquals( new Double( "2.6000000000000005" ).doubleValue(),
+      calculate( "12.5", "3.3", ValueMetaInterface.TYPE_NUMBER, CalculatorMetaFunction.CALC_REMAINDER ) );
+    assertEquals( new Double( "4.0" ).doubleValue(),
+      calculate( "12.5", "4.25", ValueMetaInterface.TYPE_NUMBER, CalculatorMetaFunction.CALC_REMAINDER ) );
+    assertEquals( new Long( "1" ).longValue(),
+      calculate( "10", "3.3",null,
+        ValueMetaInterface.TYPE_INTEGER, ValueMetaInterface.TYPE_NUMBER, ValueMetaInterface.TYPE_NUMBER, CalculatorMetaFunction.CALC_REMAINDER ) );
   }
 
   @Test
@@ -764,6 +1099,18 @@ public class ValueDataUtilTest {
     assertEquals( metaA.getStorageType(), ValueMetaInterface.STORAGE_TYPE_NORMAL );
   }
 
+  @Test
+  public void testJaro() {
+    assertEquals(new Double("0.0"), calculate("abcd", "defg", ValueMetaInterface.TYPE_STRING, CalculatorMetaFunction.CALC_JARO ) );
+    assertEquals(new Double("0.44166666666666665"), calculate("elephant", "hippo", ValueMetaInterface.TYPE_STRING, CalculatorMetaFunction.CALC_JARO ) );
+    assertEquals(new Double("0.8666666666666667"), calculate("hello", "hallo", ValueMetaInterface.TYPE_STRING, CalculatorMetaFunction.CALC_JARO ) );
+  }
+
+  @Test
+  public void testJaroWinkler() {
+    assertEquals(new Double("0.0"), calculate("abcd", "defg", ValueMetaInterface.TYPE_STRING, CalculatorMetaFunction.CALC_JARO_WINKLER ) );
+  }
+
   private Object calculate( String string_dataA, int valueMetaInterfaceType, int calculatorMetaFunction ) {
     return calculate( string_dataA, null, null, valueMetaInterfaceType, calculatorMetaFunction );
   }
@@ -773,7 +1120,47 @@ public class ValueDataUtilTest {
     return calculate( string_dataA, string_dataB, null, valueMetaInterfaceType, calculatorMetaFunction );
   }
 
-  private Object calculate( String string_dataA, String string_dataB, String string_dataC, int valueMetaInterfaceType,
+  private Object createObject( String string_value, int valueMetaInterfaceType, ValueMetaInterface parameterValueMeta) throws KettleValueException {
+    if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_NUMBER ) {
+      return ( !Utils.isEmpty( string_value ) ? Double.valueOf( string_value ) : null );
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_INTEGER ) {
+      return ( !Utils.isEmpty( string_value ) ? Long.valueOf( string_value ) : null );
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_DATE ) {
+      SimpleDateFormat simpleDateFormat = new SimpleDateFormat( yyyy_MM_dd );
+      try {
+        return ( !Utils.isEmpty( string_value ) ? simpleDateFormat.parse( string_value ) : null );
+      } catch ( ParseException pe ) {
+        fail( pe.getMessage() );
+        return null;
+      }
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BIGNUMBER ) {
+      return ( !Utils.isEmpty( string_value ) ? BigDecimal.valueOf( Double.valueOf( string_value ) ) : null );
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_STRING ) {
+      return ( !Utils.isEmpty( string_value ) ? string_value : null );
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BINARY ) {
+      ValueMetaInterface binaryValueMeta = new ValueMetaBinary( "binary_data" );
+      return
+        ( !Utils.isEmpty( string_value ) ? binaryValueMeta.convertData( parameterValueMeta, string_value ) : null );
+    } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BOOLEAN ) {
+      if ( !Utils.isEmpty( string_value ) ) {
+        return ( string_value.equalsIgnoreCase( "true" ) ? true : false );
+      } else {
+        return null;
+      }
+    } else {
+      fail( "Invalid ValueMetaInterface type." );
+      return null;
+    }
+  }
+
+  private Object calculate( String string_dataA, String string_dataB, String string_dataC, int valueMetaInterfaceTypeABC,
+                            int calculatorMetaFunction ) {
+    return calculate( string_dataA, string_dataB, string_dataC,
+      valueMetaInterfaceTypeABC, valueMetaInterfaceTypeABC, valueMetaInterfaceTypeABC, calculatorMetaFunction );
+  }
+
+  private Object calculate( String string_dataA, String string_dataB, String string_dataC,
+      int valueMetaInterfaceTypeA, int valueMetaInterfaceTypeB, int valueMetaInterfaceTypeC,
       int calculatorMetaFunction ) {
 
     try {
@@ -782,69 +1169,13 @@ public class ValueDataUtilTest {
       ValueMetaInterface parameterValueMeta = new ValueMetaString( "parameter" );
 
       // We create the meta information for
-      ValueMetaInterface valueMetaA = createValueMeta( "data_A", valueMetaInterfaceType );
-      ValueMetaInterface valueMetaB = createValueMeta( "data_B", valueMetaInterfaceType );
-      ValueMetaInterface valueMetaC = createValueMeta( "data_C", valueMetaInterfaceType );
+      ValueMetaInterface valueMetaA = createValueMeta( "data_A", valueMetaInterfaceTypeA );
+      ValueMetaInterface valueMetaB = createValueMeta( "data_B", valueMetaInterfaceTypeB );
+      ValueMetaInterface valueMetaC = createValueMeta( "data_C", valueMetaInterfaceTypeC );
 
-      Object dataA = null;
-      Object dataB = null;
-      Object dataC = null;
-
-      if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_NUMBER ) {
-        dataA = ( !Utils.isEmpty( string_dataA ) ? Double.valueOf( string_dataA ) : null );
-        dataB = ( !Utils.isEmpty( string_dataB ) ? Double.valueOf( string_dataB ) : null );
-        dataC = ( !Utils.isEmpty( string_dataC ) ? Double.valueOf( string_dataC ) : null );
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_INTEGER ) {
-        dataA = ( !Utils.isEmpty( string_dataA ) ? Long.valueOf( string_dataA ) : null );
-        dataB = ( !Utils.isEmpty( string_dataB ) ? Long.valueOf( string_dataB ) : null );
-        dataC = ( !Utils.isEmpty( string_dataC ) ? Long.valueOf( string_dataC ) : null );
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_DATE ) {
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat( yyyy_MM_dd );
-        try {
-          dataA = ( !Utils.isEmpty( string_dataA ) ? simpleDateFormat.parse( string_dataA ) : null );
-          dataB = ( !Utils.isEmpty( string_dataB ) ? simpleDateFormat.parse( string_dataB ) : null );
-          dataC = ( !Utils.isEmpty( string_dataC ) ? simpleDateFormat.parse( string_dataC ) : null );
-        } catch ( ParseException pe ) {
-          fail( pe.getMessage() );
-          return null;
-        }
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BIGNUMBER ) {
-        dataA = ( !Utils.isEmpty( string_dataA ) ? BigDecimal.valueOf( Double.valueOf( string_dataA ) ) : null );
-        dataB = ( !Utils.isEmpty( string_dataB ) ? BigDecimal.valueOf( Double.valueOf( string_dataB ) ) : null );
-        dataC = ( !Utils.isEmpty( string_dataC ) ? BigDecimal.valueOf( Double.valueOf( string_dataC ) ) : null );
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_STRING ) {
-        dataA = ( !Utils.isEmpty( string_dataA ) ? string_dataA : null );
-        dataB = ( !Utils.isEmpty( string_dataB ) ? string_dataB : null );
-        dataC = ( !Utils.isEmpty( string_dataC ) ? string_dataC : null );
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BINARY ) {
-        ValueMetaInterface binaryValueMeta = new ValueMetaBinary( "binary_data" );
-
-        dataA =
-            ( !Utils.isEmpty( string_dataA ) ? binaryValueMeta.convertData( parameterValueMeta, string_dataA ) : null );
-        dataB =
-            ( !Utils.isEmpty( string_dataB ) ? binaryValueMeta.convertData( parameterValueMeta, string_dataB ) : null );
-        dataC =
-            ( !Utils.isEmpty( string_dataC ) ? binaryValueMeta.convertData( parameterValueMeta, string_dataC ) : null );
-      } else if ( valueMetaInterfaceType == ValueMetaInterface.TYPE_BOOLEAN ) {
-        if ( !Utils.isEmpty( string_dataA ) ) {
-          dataA = ( string_dataA.equalsIgnoreCase( "true" ) ? true : false );
-        } else {
-          dataA = null;
-        }
-        if ( !Utils.isEmpty( string_dataB ) ) {
-          dataB = ( string_dataB.equalsIgnoreCase( "true" ) ? true : false );
-        } else {
-          dataB = null;
-        }
-        if ( !Utils.isEmpty( string_dataC ) ) {
-          dataC = ( string_dataC.equalsIgnoreCase( "true" ) ? true : false );
-        } else {
-          dataC = null;
-        }
-      } else {
-        fail( "Invalid ValueMetaInterface type." );
-        return null;
-      }
+      Object dataA = createObject( string_dataA, valueMetaInterfaceTypeA, parameterValueMeta);
+      Object dataB = createObject( string_dataB, valueMetaInterfaceTypeB, parameterValueMeta);
+      Object dataC = createObject( string_dataC, valueMetaInterfaceTypeC, parameterValueMeta);
 
       if ( calculatorMetaFunction == CalculatorMetaFunction.CALC_ADD ) {
         return ValueDataUtil.plus( valueMetaA, dataA, valueMetaB, dataB );
@@ -878,6 +1209,10 @@ public class ValueDataUtilTest {
         return ValueDataUtil.DateWorkingDiff( valueMetaA, dataA, valueMetaB, dataB );
       } else if ( calculatorMetaFunction == CalculatorMetaFunction.CALC_REMAINDER ) {
         return ValueDataUtil.remainder( valueMetaA, dataA, valueMetaB, dataB );
+      } else if ( calculatorMetaFunction == CalculatorMetaFunction.CALC_JARO ) {
+        return ValueDataUtil.getJaro_Similitude( valueMetaA, dataA, valueMetaB, dataB );
+      } else if ( calculatorMetaFunction == CalculatorMetaFunction.CALC_JARO_WINKLER ) {
+        return ValueDataUtil.getJaroWinkler_Similitude( valueMetaA, dataA, valueMetaB, dataB );
       } else {
         fail( "Invalid CalculatorMetaFunction specified." );
         return null;

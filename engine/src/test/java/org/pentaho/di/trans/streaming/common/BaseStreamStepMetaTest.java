@@ -23,6 +23,8 @@
 package org.pentaho.di.trans.streaming.common;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -30,13 +32,26 @@ import org.mockito.runners.MockitoJUnitRunner;
 import org.pentaho.di.core.CheckResultInterface;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.ObjectLocationSpecificationMethod;
+import org.pentaho.di.core.annotations.Step;
+import org.pentaho.di.core.encryption.Encr;
+import org.pentaho.di.core.encryption.TwoWayPasswordEncoderPluginType;
 import org.pentaho.di.core.exception.KettleException;
+import org.pentaho.di.core.exception.KettleStepException;
+import org.pentaho.di.core.exception.KettleXMLException;
 import org.pentaho.di.core.injection.Injection;
 import org.pentaho.di.core.injection.InjectionSupported;
 import org.pentaho.di.core.logging.KettleLogStore;
 import org.pentaho.di.core.logging.LogChannelInterface;
 import org.pentaho.di.core.logging.LogChannelInterfaceFactory;
+import org.pentaho.di.core.plugins.PluginRegistry;
+import org.pentaho.di.core.row.RowMeta;
+import org.pentaho.di.core.row.RowMetaInterface;
+import org.pentaho.di.core.util.EnvUtil;
+import org.pentaho.di.core.variables.VariableSpace;
 import org.pentaho.di.core.variables.Variables;
+import org.pentaho.di.core.xml.XMLHandler;
+import org.pentaho.di.junit.rules.RestorePDIEngineEnvironment;
+import org.pentaho.di.repository.Repository;
 import org.pentaho.di.resource.ResourceEntry;
 import org.pentaho.di.resource.ResourceReference;
 import org.pentaho.di.trans.Trans;
@@ -44,24 +59,52 @@ import org.pentaho.di.trans.TransMeta;
 import org.pentaho.di.trans.step.StepDataInterface;
 import org.pentaho.di.trans.step.StepInterface;
 import org.pentaho.di.trans.step.StepMeta;
+import org.pentaho.di.trans.step.StepMetaInterface;
+import org.pentaho.metastore.api.IMetaStore;
+import org.w3c.dom.Node;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.singletonList;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.fail;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.pentaho.di.core.util.Assert.assertTrue;
 import static org.powermock.api.mockito.PowerMockito.when;
 
-@RunWith( MockitoJUnitRunner.class )
+@RunWith ( MockitoJUnitRunner.class )
 public class BaseStreamStepMetaTest {
 
+  @ClassRule public static RestorePDIEngineEnvironment env = new RestorePDIEngineEnvironment();
+
   private BaseStreamStepMeta meta;
-  @Mock LogChannelInterfaceFactory logChannelFactory;
-  @Mock LogChannelInterface logChannel;
+  @Mock private LogChannelInterfaceFactory logChannelFactory;
+  @Mock private LogChannelInterface logChannel;
+  @Mock private RowMetaInterface rowMeta;
+  @Mock private RowMetaInterface prevRowMeta;
+  @Mock private StepMeta subTransStepMeta;
+  @Mock private StepMeta nextStepMeta;
+  @Mock private StepMetaInterface stepMetaInterface;
+  @Mock private VariableSpace space;
+  @Mock private Repository repo;
+  @Mock private BaseStreamStepMeta.MappingMetaRetriever mappingMetaRetriever;
+  @Mock private TransMeta subTransMeta;
+
+  @BeforeClass
+  public static void setUpBeforeClass() throws KettleException {
+    PluginRegistry.addPluginType( TwoWayPasswordEncoderPluginType.getInstance() );
+    PluginRegistry.init( false );
+    String passwordEncoderPluginID =
+      Const.NVL( EnvUtil.getSystemProperty( Const.KETTLE_PASSWORD_ENCODER_PLUGIN ), "Kettle" );
+    Encr.init( passwordEncoderPluginID );
+  }
 
   @Before
   public void setUp() throws Exception {
@@ -69,12 +112,28 @@ public class BaseStreamStepMetaTest {
     KettleLogStore.setLogChannelInterfaceFactory( logChannelFactory );
     when( logChannelFactory.create( any(), any() ) ).thenReturn( logChannel );
     when( logChannelFactory.create( any() ) ).thenReturn( logChannel );
+    when( mappingMetaRetriever.get( any(), any(), any(), any() ) ).thenReturn( subTransMeta );
+
+    when( subTransMeta.getPrevStepFields( anyString() ) ).thenReturn( prevRowMeta );
+    when( subTransMeta.getSteps() ).thenReturn( singletonList( subTransStepMeta ) );
+    when( subTransStepMeta.getStepMetaInterface() ).thenReturn( stepMetaInterface );
   }
 
-  @InjectionSupported( localizationPrefix = "stuff" )
+  @Step ( id = "StuffStream", name = "Stuff Stream" )
+  @InjectionSupported ( localizationPrefix = "stuff", groups = { "stuffGroup" } )
   private static class StuffStreamMeta extends BaseStreamStepMeta {
-    @Injection( name = "stuff" )
-    List<String> stuff = Arrays.asList( "one", "two" );
+    @Injection ( name = "stuff", group = "stuffGroup" )
+    List<String> stuff = new ArrayList<>();
+
+    // stuff needs to be mutable to support .add() for metadatainjection.
+    // otherwise would use Arrays.asList();
+    {
+      stuff.add( "one" );
+      stuff.add( "two" );
+    }
+
+    @Injection ( name = "AUTH_PASSWORD" )
+    String password = "test";
 
     @Override
     public StepInterface getStep( StepMeta stepMeta, StepDataInterface stepDataInterface, int copyNr,
@@ -84,6 +143,10 @@ public class BaseStreamStepMetaTest {
     }
 
     @Override public StepDataInterface getStepData() {
+      return null;
+    }
+
+    @Override public RowMeta getRowMeta( String origin, VariableSpace space ) {
       return null;
     }
   }
@@ -96,12 +159,13 @@ public class BaseStreamStepMetaTest {
     meta.check( remarks, null, null, null, null, null, null, new Variables(), null, null );
     assertEquals( 1, remarks.size() );
     assertEquals(
-      "The \"Number of records\" and \"Duration\" fields can’t both be set to 0. Please set a value of 1 or higher for one of the fields.",
+      "The \"Number of records\" and \"Duration\" fields can’t both be set to 0. Please set a value of 1 or higher "
+        + "for one of the fields.",
       remarks.get( 0 ).getText() );
   }
 
   @Test
-  public void testCheckErrorsOnNaN() throws Exception {
+  public void testCheckErrorsOnNaN() {
     List<CheckResultInterface> remarks = new ArrayList<>();
     meta.setBatchDuration( "blah" );
     meta.setBatchSize( "blah" );
@@ -137,35 +201,36 @@ public class BaseStreamStepMetaTest {
     assertEquals( 1, remarks.size() );
     assertEquals( "The \"Number of records\" and \"Duration\" fields can’t both be set to 0. Please set a value of 1 "
       + "or higher for one of the fields.", remarks.get( 0 ).getText() );
+    testRoundTrip( meta );
   }
 
   @Test
-  public void testSaveXMLWithInjectionList() {
+  public void testBasicRoundTrip() {
     meta.setBatchDuration( "1000" );
     meta.setBatchSize( "100" );
     meta.setTransformationPath( "aPath" );
-    String xml = meta.getXML();
-    assertEquals(
-      "<NUM_MESSAGES>100</NUM_MESSAGES>" + Const.CR
-        + "<DURATION>1000</DURATION>" + Const.CR
-        + "<stuff>one</stuff>" + Const.CR
-        + "<stuff>two</stuff>" + Const.CR
-        + "<TRANSFORMATION_PATH>aPath</TRANSFORMATION_PATH>" + Const.CR,
-      xml );
+    testRoundTrip( meta );
+  }
+
+  @Test
+  public void testRoundTripInjectionList() {
+    StuffStreamMeta startingMeta = new StuffStreamMeta();
+    startingMeta.stuff = new ArrayList<>();
+    startingMeta.stuff.add( "foo" );
+    startingMeta.stuff.add( "bar" );
+    startingMeta.stuff.add( "baz" );
+    startingMeta.setBatchDuration( "1000" );
+    startingMeta.setBatchSize( "100" );
+    startingMeta.setTransformationPath( "aPath" );
+    testRoundTrip( startingMeta );
   }
 
   @Test
   public void testSaveDefaultEmptyConnection() {
     StuffStreamMeta meta = new StuffStreamMeta();
-    String xml = meta.getXML();
-    assertEquals(
-      "<NUM_MESSAGES>1000</NUM_MESSAGES>" + Const.CR
-        + "<DURATION>1000</DURATION>" + Const.CR
-        + "<stuff>one</stuff>" + Const.CR
-        + "<stuff>two</stuff>" + Const.CR
-        + "<TRANSFORMATION_PATH/>" + Const.CR,
-      xml );
+    testRoundTrip( meta );
   }
+
 
   @Test
   public void testGetResourceDependencies() {
@@ -184,6 +249,7 @@ public class BaseStreamStepMetaTest {
     assertEquals( path, resourceDependencies.get( 0 ).getEntries().get( 0 ).getResource() );
     assertEquals( ResourceEntry.ResourceType.ACTIONFILE,
       resourceDependencies.get( 0 ).getEntries().get( 0 ).getResourcetype() );
+    testRoundTrip( inputMeta );
   }
 
   @Test
@@ -191,6 +257,7 @@ public class BaseStreamStepMetaTest {
     BaseStreamStepMeta meta = new StuffStreamMeta();
     assertEquals( 1, meta.getReferencedObjectDescriptions().length );
     assertTrue( meta.getReferencedObjectDescriptions()[ 0 ] != null );
+    testRoundTrip( meta );
   }
 
   @Test
@@ -200,6 +267,7 @@ public class BaseStreamStepMetaTest {
     assertFalse( meta.isReferencedObjectEnabled()[ 0 ] );
     meta.setTransformationPath( "/some/path" );
     assertTrue( meta.isReferencedObjectEnabled()[ 0 ] );
+    testRoundTrip( meta );
   }
 
   @Test
@@ -213,5 +281,49 @@ public class BaseStreamStepMetaTest {
     } catch ( KettleException e ) {
       fail();
     }
+    testRoundTrip( meta );
+  }
+
+  @Test
+  public void testGetFieldsDoesEnvSubstitutionForSubStepName() throws KettleStepException {
+    // https://jira.pentaho.com/browse/BACKLOG-22575
+    BaseStreamStepMeta meta = new StuffStreamMeta();
+    meta.setSubStep( "${parameter}" );
+    when( space.environmentSubstitute( "${parameter}" ) ).thenReturn( "realSubStepName" );
+    when( subTransStepMeta.getName() ).thenReturn( "realSubStepName" );
+
+    meta.mappingMetaRetriever = mappingMetaRetriever;
+    meta.getFields( rowMeta, "origin", null, nextStepMeta, space, repo, null );
+
+    verify( space ).environmentSubstitute( "${parameter}" );
+    verify( subTransMeta ).getPrevStepFields( "realSubStepName" );
+    verify( stepMetaInterface )
+      .getFields( rowMeta, "origin", null, nextStepMeta, space, repo, null );
+  }
+
+  @Test
+  public void replacingFileNameAlsoSetsTransformationPath() {
+    StuffStreamMeta stuffStreamMeta = new StuffStreamMeta();
+    stuffStreamMeta.replaceFileName( "someName" );
+    assertEquals( "someName", stuffStreamMeta.getTransformationPath() );
+  }
+
+  // Checks that a serialization->deserialization does not alter meta fields
+  private void testRoundTrip( BaseStreamStepMeta thisMeta ) {
+    StuffStreamMeta startingMeta = (StuffStreamMeta) thisMeta;
+    String xml = startingMeta.getXML();
+    StuffStreamMeta metaToRoundTrip = new StuffStreamMeta();
+    try {
+      Node stepNode = XMLHandler.getSubNode( XMLHandler.loadXMLString( "<step>" + xml + "</step>" ), "step" );
+
+      metaToRoundTrip.loadXML( stepNode, Collections.emptyList(), (IMetaStore) null );
+    } catch ( KettleXMLException e ) {
+      throw new RuntimeException( e );
+    }
+    assertThat( startingMeta.getBatchDuration(), equalTo( metaToRoundTrip.getBatchDuration() ) );
+    assertThat( startingMeta.getBatchSize(), equalTo( metaToRoundTrip.getBatchSize() ) );
+    assertThat( startingMeta.getTransformationPath(), equalTo( metaToRoundTrip.getTransformationPath() ) );
+
+    assertThat( startingMeta.stuff, equalTo( metaToRoundTrip.stuff ) );
   }
 }

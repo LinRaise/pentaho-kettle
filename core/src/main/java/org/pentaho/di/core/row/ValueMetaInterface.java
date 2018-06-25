@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -724,6 +724,20 @@ public interface ValueMetaInterface extends Cloneable {
   int getOriginalScale();
 
   /**
+   * Gets the original nullable.
+   *
+   * @return the original nullable
+   */
+  int getOriginalNullable();
+
+  /**
+   * Gets the original signed.
+   *
+   * @return the original signed
+   */
+  boolean getOriginalSigned();
+
+  /**
    * Sets the original scale.
    *
    * @param originalScale
@@ -1255,6 +1269,25 @@ public interface ValueMetaInterface extends Cloneable {
     int index, boolean ignoreLength, boolean lazyConversion ) throws KettleDatabaseException;
 
   /**
+   * This is a similar method to getValueFromSQLType, but it uses a
+   * ResultSet from a call to DatabaseMetaData#getColumns(String, String, String, String)
+   * The ResultSet must be positioned correctly on the row to read.
+   *
+   * <p>Note that the ValueMeta returned by this RowMeta may not contain
+   * actual values. This is a lightweight call using only JDBC metadata and does
+   * not make use of SQL statements.
+   *
+   * @param databaseMeta
+   *          the database metadata to reference capabilities and so on.
+   * @param lazyConversion
+   *          use lazy conversion
+   * @param rs
+   *          A ResultSet from getColumns, positioned correctly on a column to read.
+   */
+  ValueMetaInterface getMetadataPreview( DatabaseMeta databaseMeta, ResultSet rs )
+    throws KettleDatabaseException;
+
+  /**
    * Get a value from a result set column based on the current value metadata
    *
    * @param databaseInterface
@@ -1324,5 +1357,21 @@ public interface ValueMetaInterface extends Cloneable {
    */
   String getDatabaseColumnTypeDefinition( DatabaseInterface databaseInterface, String tk, String pk,
     boolean use_autoinc, boolean add_fieldname, boolean add_cr );
+
+  /**
+   * Is Ignore Whitespace
+   * Only applicable for TYPE_STRING comparisons
+   *
+   * @return true if whitespace should be ignored during string comparison
+   */
+  boolean isIgnoreWhitespace();
+
+  /**
+   * Set Ignore Whitespace
+   * Only applicable for TYPE_STRING comparisons
+   *
+   * @param ignoreWhitespace true if whitespace should be ignored during string comparison
+   */
+  void setIgnoreWhitespace( boolean ignoreWhitespace );
 
 }

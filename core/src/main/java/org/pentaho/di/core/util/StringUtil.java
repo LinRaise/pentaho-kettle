@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -310,7 +310,7 @@ public class StringUtil {
    * @param includeSystemVariables
    *          also check for system variables.
    */
-  private static void getUsedVariables( String aString, String open, String close, List<String> list,
+  public static void getUsedVariables( String aString, String open, String close, List<String> list,
     boolean includeSystemVariables ) {
     if ( aString == null ) {
       return;
@@ -596,5 +596,21 @@ public class StringUtil {
     return variable.startsWith( UNIX_OPEN ) && variable.endsWith( UNIX_CLOSE )
         || variable.startsWith( WINDOWS_OPEN ) && variable.endsWith( WINDOWS_CLOSE )
         || variable.startsWith( HEX_OPEN ) && variable.endsWith( HEX_CLOSE );
+  }
+
+  /**
+   * Calls the {@link String#toLowerCase()} method on the {@link String} returned by a call to {@code obj.toString()},
+   * guarding against {@link NullPointerException}s.
+   *
+   * @param obj the {@link Object} whose string representation is being turned to lower case
+   * @return a lower case {@link String} representation of the {@link String} returned by a call to {@code obj
+   * .toString()}
+   */
+  public static String safeToLowerCase( final Object obj ) {
+    if ( obj == null || obj.toString() == null ) {
+      return null;
+    } else {
+      return obj.toString().toLowerCase();
+    }
   }
 }

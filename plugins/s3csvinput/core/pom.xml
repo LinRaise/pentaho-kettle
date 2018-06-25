@@ -6,18 +6,14 @@
   <parent>
     <groupId>org.pentaho.di.plugins</groupId>
     <artifactId>s3csvinput</artifactId>
-    <version>8.1.0.0-SNAPSHOT</version>
+    <version>9.0.0.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>kettle-s3csvinput-plugin-core</artifactId>
-  <version>8.1.0.0-SNAPSHOT</version>
+  <version>9.0.0.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>PDI S3 CSV Input Plugin Core</name>
-
-  <properties>
-    <junit.version>4.4</junit.version>
-  </properties>
 
   <dependencies>
     <dependency>
@@ -42,13 +38,24 @@
       <version>3.3.0-I20070606-0010</version>
     </dependency>
     <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-core</artifactId>
+      <version>1.11.275</version>
+    </dependency>
+    <dependency>
       <groupId>pentaho-kettle</groupId>
       <artifactId>kettle-engine</artifactId>
       <classifier>tests</classifier>
     </dependency>
     <dependency>
-      <groupId>net.java.dev.jets3t</groupId>
-      <artifactId>jets3t</artifactId>
+      <groupId>pentaho-kettle</groupId>
+      <artifactId>kettle-core</artifactId>
+      <classifier>tests</classifier>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-s3</artifactId>
+      <version>1.11.275</version>
     </dependency>
     <dependency>
       <groupId>org.powermock</groupId>
@@ -61,10 +68,10 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-    <groupId>com.jamesmurty.utils</groupId>
-    <artifactId>java-xmlbuilder</artifactId>
-    <version>1.2</version>
-    <scope>test</scope>
-</dependency>
+      <groupId>com.jamesmurty.utils</groupId>
+      <artifactId>java-xmlbuilder</artifactId>
+      <version>1.2</version>
+      <scope>test</scope>
+      </dependency>
   </dependencies>
 </project>

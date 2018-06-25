@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -62,6 +62,22 @@ public class RowMetaAndDataTest {
 
     ValueMetaInterface valueMetaInteger = new ValueMetaInteger( "int" );
     rowsMeta.addValueMeta( valueMetaInteger );
+  }
+
+  @Test
+  public void testMergeRowAndMetaData() {
+    row = new RowMetaAndData( rowsMeta, "text", true, 1 );
+    RowMeta addRowMeta = new RowMeta();
+    ValueMetaInterface valueMetaString = new ValueMetaString( "str" );
+    addRowMeta.addValueMeta( valueMetaString );
+
+    RowMetaAndData addRow = new RowMetaAndData( addRowMeta, "text1" );
+    row.mergeRowMetaAndData( addRow, "originName" );
+
+    assertEquals( 4, row.size() );
+    assertEquals( "text", row.getData()[0] );
+    assertEquals( "text1", row.getData()[3] );
+    assertEquals( "originName", row.getValueMeta( 3 ).getOrigin() );
   }
 
   @Test

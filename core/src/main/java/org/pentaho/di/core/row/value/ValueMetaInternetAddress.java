@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -37,6 +37,7 @@ import java.net.InetAddress;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Date;
 
@@ -453,6 +454,29 @@ public class ValueMetaInternetAddress extends ValueMetaDate {
   }
 
   @Override
+  public ValueMetaInterface getMetadataPreview( DatabaseMeta databaseMeta, ResultSet rs )
+    throws KettleDatabaseException {
+
+    try {
+      if ( "INET".equalsIgnoreCase( rs.getString( "TYPE_NAME" ) ) ) {
+        ValueMetaInterface vmi = super.getMetadataPreview( databaseMeta, rs );
+        ValueMetaInterface valueMeta = new ValueMetaInternetAddress( name );
+        valueMeta.setLength( vmi.getLength() );
+        valueMeta.setOriginalColumnType( vmi.getOriginalColumnType() );
+        valueMeta.setOriginalColumnTypeName( vmi.getOriginalColumnTypeName() );
+        valueMeta.setOriginalNullable( vmi.getOriginalNullable() );
+        valueMeta.setOriginalPrecision( vmi.getOriginalPrecision() );
+        valueMeta.setOriginalScale( vmi.getOriginalScale() );
+        valueMeta.setOriginalSigned( vmi.getOriginalSigned() );
+        return valueMeta;
+      }
+    } catch ( SQLException e ) {
+      throw new KettleDatabaseException( e );
+    }
+    return null;
+  }
+
+  @Override
   public ValueMetaInterface getValueFromSQLType( DatabaseMeta databaseMeta, String name, ResultSetMetaData rm,
     int index, boolean ignoreLength, boolean lazyConversion ) throws KettleDatabaseException {
 
@@ -524,6 +548,11 @@ public class ValueMetaInternetAddress extends ValueMetaDate {
     }
 
     return retval;
+  }
+
+  @Override
+  public Object getNativeDataType( Object object ) throws KettleValueException {
+    return getInternetAddress( object );
   }
 
   @Override

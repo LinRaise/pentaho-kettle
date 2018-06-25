@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -44,9 +44,18 @@ public class ConstUI {
    */
   public static final int ICON_SIZE = 32;
 
+  public static final int LARGE_ICON_SIZE = 48;
+
   public static final int SMALL_ICON_SIZE = 16;
 
   public static final int MEDIUM_ICON_SIZE = 24;
+
+  public static final int DOCUMENTATION_ICON_SIZE = 14;
+
+  /**
+   * Default checkbox width
+   */
+  public static final int CHECKBOX_WIDTH = 20;
 
   /**
    * Default line width for arrows & around icons

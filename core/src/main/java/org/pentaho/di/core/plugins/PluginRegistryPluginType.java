@@ -32,7 +32,7 @@ import org.pentaho.di.core.exception.KettlePluginException;
 import org.pentaho.di.core.gui.GUIOption;
 
 /**
- * Plugins of this type can extend to capabilities of the PluginRegiestry
+ * Plugins of this type can extend to capabilities of the PluginRegistry
  *
  * User: nbaker Date: 3/14/11
  */
@@ -159,4 +159,8 @@ public class PluginRegistryPluginType extends BasePluginType implements PluginTy
     return ( (RegistryPlugin) annotation ).classLoaderGroup();
   }
 
+  @Override
+  protected String extractSuggestion( Annotation annotation ) {
+    return null;
+  }
 }

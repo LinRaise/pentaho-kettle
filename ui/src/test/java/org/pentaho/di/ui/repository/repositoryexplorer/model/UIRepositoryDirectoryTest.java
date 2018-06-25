@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2017-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -27,13 +27,11 @@ import static org.mockito.Mockito.*;
 
 import java.util.Collections;
 
-import org.apache.commons.lang.BooleanUtils;
 import org.junit.Test;
 import org.mockito.Mockito;
 import org.pentaho.di.repository.LongObjectId;
 import org.pentaho.di.repository.Repository;
 import org.pentaho.di.repository.RepositoryDirectory;
-import org.pentaho.di.repository.RepositoryDirectoryInterface;
 import org.pentaho.di.repository.RepositoryElementMetaInterface;
 import org.pentaho.di.repository.RepositoryExtended;
 import org.pentaho.di.repository.RepositoryObjectType;
@@ -90,25 +88,14 @@ public class UIRepositoryDirectoryTest {
 
   @Test
   public void testRefresh() throws Exception {
-    RepositoryDirectory root = new RepositoryDirectory();
-    LongObjectId rootObjectId = new LongObjectId( 0L );
-    root.setObjectId( rootObjectId );
-    RepositoryDirectory dir = new RepositoryDirectory();
-    dir.setObjectId( new LongObjectId( 1L ) );
-    root.addSubdirectory( dir );
-
-    RepositoryExtended repo = mock( RepositoryExtended.class );
-    UserInfo userInfo = new UserInfo();
-    userInfo.setAdmin( true );
-    Mockito.when( repo.getUserInfo() ).thenReturn( userInfo );
     RepositoryDirectory rd = Mockito.mock( RepositoryDirectory.class );
-    Mockito.when( rd.findDirectory( Mockito.eq( rootObjectId ) ) )
-      .thenReturn( Mockito.mock( RepositoryDirectory.class ) );
-    Mockito.when( repo.loadRepositoryDirectoryTree( "/", "*.ktr|*.kjb", -1, true, true, true ) ).thenReturn( rd );
-
-    UIRepositoryDirectory uiDir = new UIRepositoryDirectory( root, null, repo );
-    uiDir.refresh();
-    Mockito.verify( repo ).loadRepositoryDirectoryTree( "/", "*.ktr|*.kjb", -1, true, true, true );
+    Mockito.when( rd.getObjectId() ).thenReturn( new LongObjectId( 0L ) );
+    UIRepositoryDirectory uiDir = new UIRepositoryDirectory( rd, null, null );
+    uiDir.populateChildren();
+    uiDir.getRepositoryObjects();
+    uiDir.clear();
+    Mockito.verify( rd ).getChildren();
+    Mockito.verify( rd ).getRepositoryObjects();
   }
 
 }

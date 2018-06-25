@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -349,8 +349,8 @@ public class JobExecutorDialog extends BaseStepDialog implements StepDialogInter
 
   protected Image getImage() {
     return SwtSvgImageUtil
-      .getImage( shell.getDisplay(), getClass().getClassLoader(), "JOBEx.svg", ConstUI.ICON_SIZE,
-        ConstUI.ICON_SIZE );
+      .getImage( shell.getDisplay(), getClass().getClassLoader(), "JOBEx.svg", ConstUI.LARGE_ICON_SIZE,
+        ConstUI.LARGE_ICON_SIZE );
   }
 
   private void selectRepositoryJob() {
@@ -447,10 +447,6 @@ public class JobExecutorDialog extends BaseStepDialog implements StepDialogInter
       case REPOSITORY_BY_NAME:
         if ( Utils.isEmpty( filename ) ) {
           return;
-        }
-        if ( filename.endsWith( ".kjb" ) ) {
-          filename = filename.replace( ".kjb", "" );
-          wPath.setText( filename );
         }
         String transPath = transMeta.environmentSubstitute( filename );
         String realJobname = transPath;
@@ -1175,11 +1171,14 @@ public class JobExecutorDialog extends BaseStepDialog implements StepDialogInter
     jobExecutorMeta.setExecutionLogTextField( tiExecutionLogTextField.getText( FIELD_NAME ) );
     jobExecutorMeta.setExecutionLogChannelIdField( tiExecutionLogChannelIdField.getText( FIELD_NAME ) );
 
+    jobExecutorMeta.setResultFilesTargetStep( wResultFilesTarget.getText() );
     jobExecutorMeta.setResultFilesTargetStepMeta( transMeta.findStep( wResultFilesTarget.getText() ) );
+
     jobExecutorMeta.setResultFilesFileNameField( wResultFileNameField.getText() );
 
     // Result row info
     //
+    jobExecutorMeta.setResultRowsTargetStep( wResultRowsTarget.getText() );
     jobExecutorMeta.setResultRowsTargetStepMeta( transMeta.findStep( wResultRowsTarget.getText() ) );
     int nrFields = wResultRowsFields.nrNonEmpty();
     jobExecutorMeta.setResultRowsField( new String[ nrFields ] );

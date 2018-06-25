@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -22,9 +22,11 @@
 
 package org.pentaho.di.core.util;
 
+import org.junit.ClassRule;
 import org.junit.Test;
 import org.pentaho.di.core.Const;
 import org.pentaho.di.core.variables.Variables;
+import org.pentaho.di.junit.rules.RestorePDIEnvironment;
 
 import java.util.Locale;
 
@@ -36,6 +38,7 @@ import static org.junit.Assert.assertNull;
  * Created by Yury_Bakhmutski on 11/4/2015.
  */
 public class EnvUtilTest {
+  @ClassRule public static RestorePDIEnvironment env = new RestorePDIEnvironment();
 
   @Test
   public void vfsUserDirIsRoot_IsPublishedOnInitialisation() throws Exception {
@@ -65,5 +68,25 @@ public class EnvUtilTest {
   @Test
   public void createLocale_DoubleCode() throws Exception {
     assertEquals( Locale.US, EnvUtil.createLocale( "en_US" ) );
+  }
+
+  @Test
+  public void createLocale_DoubleCode_Variant() throws Exception {
+    assertEquals( new Locale( "no", "NO", "NY" ), EnvUtil.createLocale( "no_NO_NY" ) );
+  }
+
+  @Test
+  public void testClearProperty() {
+    String dummyPropertyTest = "KETTLE_CORE_JUNIT_DUMMY_PROPERTY_TEST_"+Math.random();
+    try {
+      assertNull( EnvUtil.getSystemProperty( dummyPropertyTest ) );
+      System.setProperty( dummyPropertyTest, "dummyValue" );
+      assertEquals( "dummyValue", EnvUtil.getSystemProperty( dummyPropertyTest ) );
+      assertEquals( "dummyValue", EnvUtil.clearSystemProperty( dummyPropertyTest ) );
+      assertNull( EnvUtil.getSystemProperty( dummyPropertyTest ) );
+    } finally {
+      //assures that the test property is removed from the System
+      System.clearProperty( dummyPropertyTest );
+    }
   }
 }

@@ -62,7 +62,7 @@ public class KettleClientEnvironment {
   private static Boolean initialized;
 
   public enum ClientType {
-    SPOON, PAN, KITCHEN, CARTE, DI_SERVER, OTHER;
+    SPOON, PAN, KITCHEN, CARTE, DI_SERVER, SCALE, OTHER;
     public String getID() {
       if ( this != OTHER ) {
         return this.name();
@@ -211,7 +211,7 @@ public class KettleClientEnvironment {
   }
 
   /**
-   * Return this singleton. Craete it if it hasn't been.
+   * Return this singleton. Create it if it hasn't been.
    *
    * @return
    */
@@ -222,5 +222,13 @@ public class KettleClientEnvironment {
     }
 
     return KettleClientEnvironment.instance;
+  }
+
+  public static void reset() {
+    if ( KettleLogStore.isInitialized() ) {
+      KettleLogStore.getInstance().reset();
+    }
+    PluginRegistry.getInstance().reset();
+    initialized = null;
   }
 }

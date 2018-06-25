@@ -2,7 +2,7 @@
  *
  * Pentaho Data Integration
  *
- * Copyright (C) 2002-2017 by Hitachi Vantara : http://www.pentaho.com
+ * Copyright (C) 2002-2018 by Hitachi Vantara : http://www.pentaho.com
  *
  *******************************************************************************
  *
@@ -24,13 +24,17 @@ package org.pentaho.di.ui.spoon.delegates;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 import org.apache.commons.vfs2.FileObject;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.browser.BrowserFunction;
 import org.eclipse.swt.browser.LocationListener;
 import org.eclipse.swt.browser.OpenWindowListener;
 import org.eclipse.swt.browser.WindowEvent;
 import org.eclipse.swt.custom.CTabFolder;
+import org.eclipse.swt.program.Program;
 import org.eclipse.swt.widgets.Composite;
 import org.pentaho.di.base.AbstractMeta;
 import org.pentaho.di.cluster.SlaveServer;
@@ -244,8 +248,7 @@ public class SpoonTabsDelegate extends SpoonDelegate {
   }
 
   public boolean addSpoonBrowser( String name, String urlString, LocationListener listener ) {
-    boolean ok = addSpoonBrowser( name, urlString, true, listener, true );
-    return ok;
+    return addSpoonBrowser( name, urlString, true, listener, true );
   }
 
   public boolean addSpoonBrowser( String name, String urlString, LocationListener listener, boolean showControls ) {
@@ -257,10 +260,14 @@ public class SpoonTabsDelegate extends SpoonDelegate {
   }
 
   public boolean addSpoonBrowser( String name, String urlString, boolean isURL, LocationListener listener, boolean showControls ) {
+    return addSpoonBrowser( name, urlString, isURL, listener, null, showControls );
+  }
+
+  public boolean addSpoonBrowser( String name, String urlString, boolean isURL, LocationListener listener, Map<String, Runnable> functions, boolean showControls ) {
     TabSet tabfolder = spoon.tabfolder;
 
     try {
-      // OK, now we have the HTML, create a new browset tab.
+      // OK, now we have the HTML, create a new browser tab.
 
       // See if there already is a tab for this browser
       // If no, add it
@@ -280,6 +287,35 @@ public class SpoonTabsDelegate extends SpoonDelegate {
             }
           }
         } );
+
+        if ( functions != null ) {
+          for ( String functionName : functions.keySet() ) {
+            new BrowserFunction( browser.getBrowser(), functionName ) {
+              public Object function( Object[] arguments ) {
+                functions.get( functionName ).run();
+                return null;
+              }
+            };
+          }
+        }
+
+        new BrowserFunction( browser.getBrowser(), "genericFunction" ) {
+          public Object function( Object[] arguments ) {
+            try {
+              ExtensionPointHandler.callExtensionPoint( log, KettleExtensionPoint.SpoonBrowserFunction.id, arguments );
+            } catch ( KettleException ignored ) {
+            }
+            return null;
+          }
+        };
+
+        new BrowserFunction( browser.getBrowser(), "openURL" ) {
+          public Object function( Object[] arguments ) {
+            Program.launch( arguments[0].toString() );
+            return null;
+          }
+        };
+
         PropsUI props = PropsUI.getInstance();
         TabItem tabItem = new TabItem( tabfolder, name, name, props.getSashWeights() );
         tabItem.setImage( GUIResource.getInstance().getImageLogoSmall() );
@@ -314,31 +350,25 @@ public class SpoonTabsDelegate extends SpoonDelegate {
   }
 
   public TabMapEntry findTabMapEntry( String tabItemText, ObjectType objectType ) {
-    for ( TabMapEntry entry : tabMap ) {
-      if ( !entry.getTabItem().isDisposed() ) {
-        if ( objectType == entry.getObjectType() && entry.getTabItem().getText().equalsIgnoreCase( tabItemText ) ) {
-          return entry;
-        }
-      }
-    }
-    return null;
+    return tabMap.stream()
+      .filter( tabMapEntry -> !tabMapEntry.getTabItem().isDisposed() )
+      .filter( tabMapEntry -> tabMapEntry.getObjectType() == objectType )
+      .filter( tabMapEntry -> tabMapEntry.getTabItem().getText().equalsIgnoreCase( tabItemText ) )
+      .findFirst().orElse( null );
   }
 
   public TabMapEntry findTabMapEntry( Object managedObject ) {
-    for ( TabMapEntry entry : tabMap ) {
-      if ( !entry.getTabItem().isDisposed() ) {
-        Object entryManagedObj = entry.getObject().getManagedObject();
-        // make sure they are the same class before comparing them
-        if ( entryManagedObj != null && managedObject != null ) {
-          if ( entryManagedObj.getClass().equals( managedObject.getClass() ) ) {
-            if ( entryManagedObj.equals( managedObject ) ) {
-              return entry;
-            }
-          }
-        }
-      }
+    if ( managedObject == null ) {
+      return null;
     }
-    return null;
+
+    return tabMap.stream()
+      .filter( tabMapEntry -> !tabMapEntry.getTabItem().isDisposed() )
+      .filter( tabMapEntry -> Objects.nonNull( tabMapEntry.getObject().getManagedObject() ) )
+      // make sure they are the same class before comparing them
+      .filter( tabMapEntry -> tabMapEntry.getObject().getManagedObject().getClass().equals( managedObject.getClass() ) )
+      .filter( tabMapEntry -> tabMapEntry.getObject().getManagedObject().equals( managedObject ) )
+      .findFirst().orElse( null );
   }
 
   /**
